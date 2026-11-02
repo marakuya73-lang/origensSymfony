@@ -1,0 +1,147 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ a.title }} · {{ a.reference }} — ORIGENS{% endblock %}
+{% block description %}{{ a.lede ?: 'Registro individual de uma peça feita à mão no arquivo ORIGENS.' }}{% endblock %}
+{% block meta %}
+    <meta property="og:title" content="{{ a.title }} · {{ a.reference }} — ORIGENS">
+    <meta property="og:description" content="{{ a.lede ?: 'Uma peça. Uma história.' }}">
+    <meta property="og:type" content="article">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block body %}
+    {% set hero = a.images|first %}
+    {% set alphabet = 'abcdefghijklmnopqrstuvwxyz' %}
+    <div class="sheet">
+        <header class="masthead">
+            <div>
+                <p class="wordmark">ORIGENS</p>
+                <p class="label">Arquivo de peças</p>
+            </div>
+            <p class="label mast-aside">Registro <br class="only-small"> individual</p>
+        </header>
+
+        <main>
+            <div class="hero">
+                <figure class="hero-figure">
+                    <img src="{{ asset(hero) }}" alt="{{ a.title }} — fotografia da peça {{ a.reference }}" width="1280" height="1600">
+                    <figcaption class="label figure-caption">
+                        <span>Fig. 1 — vista frontal</span>
+                        <span>{{ a.reference }}</span>
+                    </figcaption>
+                </figure>
+
+                <div class="hero-copy">
+                    <p class="label piece-ref">{{ a.reference }}</p>
+                    <h1 class="piece-title">{{ a.title }}</h1>
+                    {% if a.lede %}
+                        <p class="lede">{{ a.lede }}</p>
+                    {% endif %}
+
+                    <dl class="meta-strip">
+                        <div>
+                            <dt class="label">Referência</dt>
+                            <dd>{{ a.reference }}</dd>
+                        </div>
+                        <div>
+                            <dt class="label">Dimensão</dt>
+                            <dd>{{ a.dimensions }}</dd>
+                        </div>
+                    </dl>
+
+                    <p class="nfc">
+                        <svg class="icon icon-nfc" viewBox="0 0 24 24" aria-hidden="true">
+                            <rect x="3.5" y="3.5" width="17" height="17"></rect>
+                            <path d="M9 8.5c1.6 2.2 1.6 4.8 0 7M12 7c2.4 3 2.4 7 0 10M15 5.5c3.2 4 3.2 9 0 13"></path>
+                        </svg>
+                        <span class="nfc-url">{{ a.displayUrl }}</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="story">
+                {% if a.images|length > 1 %}
+                    <div class="gallery">
+                        {% for image in a.images|slice(1) %}
+                            <figure>
+                                <img src="{{ asset(image) }}" alt="{{ a.title }} — detalhe {{ loop.index }}" loading="lazy">
+                                <figcaption class="label figure-caption">Fig. {{ loop.index + 1 }} — detalhe</figcaption>
+                            </figure>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <section class="section">
+                    <div class="section-label">
+                        <p class="label">§ 01</p>
+                        <h2>A matéria</h2>
+                    </div>
+                    <div class="section-body">
+                        <ul class="material-list">
+                            {% for material in a.materials %}
+                                <li>
+                                    <span class="label">{{ alphabet|slice(loop.index0, 1) ?: loop.index }}.</span>
+                                    <div>
+                                        <p class="material-name">{{ material.name }}</p>
+                                        {% if material.note %}
+                                            <p class="quiet">{{ material.note|nl2br }}</p>
+                                        {% endif %}
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="section-label">
+                        <p class="label">§ 02</p>
+                        <h2>Feito à mão</h2>
+                    </div>
+                    <div class="section-body">
+                        <p class="handmade">{{ a.handmade|nl2br }}</p>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="section-label">
+                        <p class="label">§ 03</p>
+                        <h2>Cuidados</h2>
+                    </div>
+                    <div class="section-body">
+                        <ol class="care-list">
+                            {% for line in a.care %}
+                                <li>
+                                    <span class="label">{{ '%02d'|format(loop.index) }}</span>
+                                    <span>{{ line }}</span>
+                                </li>
+                            {% endfor %}
+                        </ol>
+                    </div>
+                </section>
+
+                <section class="record-wrap">
+                    <div class="record-card">
+                        <p class="label">Registro desta peça</p>
+                        <dl class="record-list">
+                            <div><dt>Referência</dt><dd>{{ a.reference }}</dd></div>
+                            <div><dt>Data do registro</dt><dd class="mono">{{ a.recordDate }}</dd></div>
+                            <div><dt>Endereço</dt><dd class="mono address">{{ a.displayUrl }}</dd></div>
+                        </dl>
+                        <p class="record-note">
+                            As informações aqui reunidas limitam-se aos detalhes documentados. Campos marcados como
+                            <span class="pending">informação a documentar</span>
+                            serão completados quando houver registro.
+                        </p>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <footer class="colophon">
+            <p class="motto">Uma peça. Uma história.</p>
+            <p class="label">ORIGENS · {{ a.reference }}</p>
+        </footer>
+    </div>
+{% endblock %}

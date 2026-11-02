@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../vendor/symfony/dependency-injection/Loader/schema/services.schema.json
+
+parameters:
+    env(ARTEFACT_UPLOAD_DIR): '%kernel.project_dir%/public/uploads/artefacts'
+    artefact_upload_dir: '%env(resolve:ARTEFACT_UPLOAD_DIR)%'
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/Entity/'
+
+    App\Artefact\ImageStore:
+        arguments:
+            $directory: '%artefact_upload_dir%'

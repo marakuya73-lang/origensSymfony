@@ -1,0 +1,85 @@
+{% extends 'base.html.twig' %}
+{% import '_icon.html.twig' as icons %}
+
+{% block title %}Arquivo reservado — ORIGENS{% endblock %}
+{% block description %}Gestão privada dos registros de artefactos ORIGENS.{% endblock %}
+{% block meta %}
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block body %}
+    <main class="admin-page">
+        <header class="admin-bar">
+            <div>
+                <p class="admin-mark">ORIGENS</p>
+                <p class="label">Arquivo reservado</p>
+            </div>
+            <form method="post" action="{{ path('_logout_main') }}" data-turbo="false">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">
+                <button type="submit" class="btn btn-ghost" title="Sair">
+                    {{ icons.svg('logout') }}
+                    <span class="hide-sm">Sair</span>
+                </button>
+            </form>
+        </header>
+
+        <div class="admin-heading">
+            <h1>Artefactos</h1>
+            <a class="btn" href="{{ path('admin_artefact_new') }}">{{ icons.svg('plus') }} Novo artefacto</a>
+        </div>
+
+        {% if rows is empty %}
+            <div class="empty-archive">
+                <p class="empty-title">O arquivo começa com uma peça.</p>
+                <a class="btn btn-ghost" href="{{ path('admin_artefact_new') }}">{{ icons.svg('plus') }} Novo artefacto</a>
+            </div>
+        {% else %}
+            <div>
+                <div class="record-head label">
+                    <span>Peça</span>
+                    <span>Referência</span>
+                    <span>Nome</span>
+                    <span>Criação</span>
+                    <span></span>
+                </div>
+                {% for row in rows %}
+                    <article class="record-row">
+                        {% if row.path %}
+                            <a class="row-open" href="{{ row.path }}" aria-label="Abrir {{ row.code }}"></a>
+                        {% endif %}
+                        {% if row.image %}
+                            <img src="{{ asset(row.image) }}" alt="{{ row.title }}">
+                        {% else %}
+                            <span></span>
+                        {% endif %}
+                        <div>
+                            <p class="code">{{ row.code }}</p>
+                            <p class="row-title-mobile">{{ row.title }}</p>
+                            <p class="quiet row-date-mobile">{{ row.createdOn }}</p>
+                        </div>
+                        <p class="row-title-desktop">{{ row.title }}</p>
+                        <time class="quiet row-date-desktop">{{ row.createdOn }}</time>
+                        <div class="row-actions">
+                            {% if row.url %}
+                                <button type="button" class="btn btn-ghost btn-icon" data-controller="clipboard" data-clipboard-text-value="{{ row.url }}" data-action="clipboard#copy" aria-label="Copiar endereço público" title="Copiar endereço público">
+                                    <span data-clipboard-target="idle">{{ icons.svg('copy') }}</span>
+                                    <span data-clipboard-target="done" hidden>{{ icons.svg('check') }}</span>
+                                </button>
+                            {% endif %}
+                            <form method="post" action="{{ path('admin_artefact_delete', {id: row.id}) }}" data-turbo="false" data-controller="confirm" data-confirm-message-value="Excluir {{ row.code }}? A página pública desta peça deixa de existir." data-action="submit->confirm#ask">
+                                <input type="hidden" name="_token" value="{{ csrf_token('delete') }}">
+                                <button type="submit" class="btn btn-ghost btn-icon" title="Excluir artefacto" aria-label="Excluir {{ row.code }}">
+                                    {{ icons.svg('trash') }}
+                                    <span class="sr-only">Excluir {{ row.code }}</span>
+                                </button>
+                            </form>
+                            <a class="btn btn-ghost btn-icon" href="{{ path('admin_artefact_edit', {id: row.id}) }}" title="Editar artefacto" aria-label="Editar {{ row.code }}">{{ icons.svg('pencil') }}</a>
+                        </div>
+                    </article>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <p class="admin-motto">Uma peça. Uma história.</p>
+    </main>
+{% endblock %}

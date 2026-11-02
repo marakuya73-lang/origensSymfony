@@ -1,0 +1,42 @@
+{% extends 'base.html.twig' %}
+{% import '_icon.html.twig' as icons %}
+
+{% block title %}Peça registrada — ORIGENS{% endblock %}
+{% block description %}Registro individual criado no arquivo ORIGENS.{% endblock %}
+{% block meta %}
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block body %}
+    <main class="editor-page">
+        <div class="editor-panel">
+            <h1 class="editor-title">Peça registrada</h1>
+            <p class="label editor-kicker">ORIGENS · Registro individual</p>
+
+            <p class="label saved-label">Referência permanente</p>
+            <p class="saved-code">{{ saved.code }}</p>
+            <div class="saved-actions">
+                <button type="button" class="btn btn-outline" data-controller="clipboard" data-clipboard-text-value="{{ saved.code }}" data-action="clipboard#copy">
+                    <span data-clipboard-target="idle">{{ icons.svg('copy') }} Copiar código</span>
+                    <span data-clipboard-target="done" hidden>{{ icons.svg('check') }} Copiado</span>
+                </button>
+            </div>
+
+            <p class="label saved-label">Endereço público · NFC</p>
+            <p class="hint">É este endereço longo que vai no seu cartão NFC.</p>
+            <p class="saved-url">{{ saved.url }}</p>
+            <div class="saved-actions">
+                <button type="button" class="btn btn-outline" data-controller="clipboard" data-clipboard-text-value="{{ saved.url }}" data-action="clipboard#copy">
+                    <span data-clipboard-target="idle">{{ icons.svg('copy') }} Copiar URL</span>
+                    <span data-clipboard-target="done" hidden>{{ icons.svg('check') }} Copiado</span>
+                </button>
+                <a class="btn btn-ghost" href="{{ saved.url }}" target="_blank" rel="noreferrer">Abrir página</a>
+            </div>
+
+            <form class="close-form" method="post" action="{{ path('admin_artefact_close') }}" data-turbo="false">
+                <input type="hidden" name="_token" value="{{ csrf_token('submit') }}">
+                <button type="submit" class="btn">Concluir</button>
+            </form>
+        </div>
+    </main>
+{% endblock %}

@@ -1,0 +1,42 @@
+security:
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+
+    providers:
+        owners:
+            memory:
+                users:
+                    owner:
+                        password: '%env(ORIGENS_OWNER_PASSWORD_HASH)%'
+                        roles: ['ROLE_ADMIN']
+
+    firewalls:
+        dev:
+            pattern: ^/(_profiler|_wdt|assets|build)/
+            security: false
+        main:
+            lazy: true
+            provider: owners
+            form_login:
+                login_path: admin_login
+                check_path: admin_login
+                enable_csrf: true
+                default_target_path: admin_records
+                username_parameter: _username
+                password_parameter: _password
+            logout:
+                path: /admin/logout
+                target: admin_login
+                enable_csrf: true
+
+    access_control:
+        - { path: ^/admin/records, roles: ROLE_ADMIN }
+
+when@test:
+    security:
+        password_hashers:
+            Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+                algorithm: auto
+                cost: 4
+                time_cost: 3
+                memory_cost: 10

@@ -1,0 +1,160 @@
+{% extends 'base.html.twig' %}
+{% import '_icon.html.twig' as icons %}
+
+{% block title %}{{ draft.locked ? 'Editar artefacto' : 'Novo artefacto' }} — ORIGENS{% endblock %}
+{% block description %}Registro privado de uma peça do arquivo ORIGENS.{% endblock %}
+{% block meta %}
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block body %}
+    <main class="editor-page">
+        <form
+            class="editor-panel stack"
+            method="post"
+            action="{{ action }}"
+            enctype="multipart/form-data"
+            data-turbo="false"
+            data-controller="artefact-editor"
+            data-artefact-editor-upload-url-value="{{ uploadUrl }}"
+            data-artefact-editor-token-value="{{ csrf_token('submit') }}"
+            data-artefact-editor-persisted-value="{{ draft.locked ? 'true' : 'false' }}"
+            data-action="submit->artefact-editor#guard focusout->artefact-editor#save change->artefact-editor#save"
+        >
+            <input type="hidden" name="_token" value="{{ csrf_token('submit') }}">
+            <div>
+                <h1 class="editor-title">{{ draft.locked ? 'Editar artefacto' : 'Novo artefacto' }}</h1>
+                <p class="label editor-kicker">{{ draft.code ?: 'ORIGENS · Novo registro' }}</p>
+            </div>
+
+            <label class="field">Nome do artefacto
+                <input name="title" required maxlength="180" value="{{ draft.title }}" autofocus>
+            </label>
+
+            <div class="split">
+                <fieldset data-identity {% if draft.locked %}disabled{% endif %}>
+                    <legend>Tamanho</legend>
+                    <div class="choice">
+                        {% for size in ['P', 'M', 'G'] %}
+                            <label class="choice-option">
+                                <input type="radio" name="size" value="{{ size }}" {% if draft.size == size %}checked{% endif %}>
+                                {{ size }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <fieldset data-identity {% if draft.locked %}disabled{% endif %}>
+                    <legend>Categoria</legend>
+                    <div class="choice">
+                        {% for category in [1, 2, 3] %}
+                            <label class="choice-option">
+                                <input type="radio" name="category" value="{{ category }}" {% if draft.category == category %}checked{% endif %}>
+                                {{ category }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+            </div>
+
+            <div class="split split-stack">
+                <label class="field">Data do registro
+                    <input type="date" name="record_date" required value="{{ draft.recordDate }}">
+                </label>
+                <label class="field">Dimensão (opcional)
+                    <input name="dimensions" maxlength="100" value="{{ draft.dimensions }}" placeholder="Ex.: aproximadamente 50 cm">
+                </label>
+            </div>
+
+            <label class="field">Descrição breve (opcional)
+                <textarea name="description" rows="2" maxlength="2000">{{ draft.description }}</textarea>
+            </label>
+
+            <fieldset class="photo-set">
+                <legend>Fotografias</legend>
+                <div class="photo-grid" data-artefact-editor-target="list">
+                    {% for image in draft.images %}
+                        <div class="photo" data-photo>
+                            <img src="{{ asset(image.src) }}" alt="Foto {{ loop.index }}">
+                            <div class="photo-bar">
+                                <span class="label" data-photo-label>{% if loop.first %}Principal{% else %}Foto {{ loop.index }}{% endif %}</span>
+                                <div class="photo-actions">
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="up" data-move-up aria-label="Mover foto {{ loop.index }} antes" title="Mover antes" {% if loop.first %}disabled{% endif %}>{{ icons.svg('arrow-up') }}</button>
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="down" data-move-down aria-label="Mover foto {{ loop.index }} depois" title="Mover depois" {% if loop.last %}disabled{% endif %}>{{ icons.svg('arrow-down') }}</button>
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#remove" aria-label="Remover foto {{ loop.index }}" title="Remover foto">{{ icons.svg('trash') }}</button>
+                                </div>
+                            </div>
+                            <input type="hidden" name="images[]" value="{{ image.path }}">
+                        </div>
+                    {% endfor %}
+                </div>
+                <label class="btn btn-outline upload-btn">
+                    {{ icons.svg('upload') }}
+                    <span data-artefact-editor-target="uploadLabel">Adicionar fotos</span>
+                    <input class="sr-only" type="file" name="uploads[]" accept="image/jpeg,image/png,image/webp" multiple data-artefact-editor-target="file" data-action="change->artefact-editor#upload">
+                </label>
+                <template data-artefact-editor-target="photoTemplate">
+                    <div class="photo" data-photo>
+                        <img alt="">
+                        <div class="photo-bar">
+                            <span class="label" data-photo-label>Foto</span>
+                            <div class="photo-actions">
+                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="up" data-move-up aria-label="Mover foto antes" title="Mover antes">{{ icons.svg('arrow-up') }}</button>
+                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="down" data-move-down aria-label="Mover foto depois" title="Mover depois">{{ icons.svg('arrow-down') }}</button>
+                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#remove" aria-label="Remover foto" title="Remover foto">{{ icons.svg('trash') }}</button>
+                            </div>
+                        </div>
+                        <input type="hidden" name="images[]" value="">
+                    </div>
+                </template>
+            </fieldset>
+
+            <fieldset class="material-set">
+                <legend>Materiais e notas</legend>
+                <div class="material-stack" data-artefact-editor-target="materials">
+                    {% for material in draft.materials %}
+                        <div class="material" data-material>
+                            <div class="material-line">
+                                <label class="field" data-material-label>Material {{ loop.index }}
+                                    <input required maxlength="150" name="materials[{{ loop.index0 }}][name]" value="{{ material.name }}" data-name>
+                                </label>
+                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#removeMaterial" data-remove-material aria-label="Remover material {{ loop.index }}" title="Remover material" {% if draft.materials|length == 1 %}disabled{% endif %}>{{ icons.svg('trash') }}</button>
+                            </div>
+                            <label class="field">Nota (opcional)
+                                <textarea rows="2" maxlength="2000" name="materials[{{ loop.index0 }}][note]" data-note>{{ material.note }}</textarea>
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+                <button type="button" class="btn btn-ghost" data-action="artefact-editor#addMaterial">{{ icons.svg('plus') }} Adicionar material</button>
+                <template data-artefact-editor-target="materialTemplate">
+                    <div class="material" data-material>
+                        <div class="material-line">
+                            <label class="field" data-material-label>Material
+                                <input required maxlength="150" name="materials[__INDEX__][name]" data-name>
+                            </label>
+                            <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#removeMaterial" data-remove-material aria-label="Remover material" title="Remover material">{{ icons.svg('trash') }}</button>
+                        </div>
+                        <label class="field">Nota (opcional)
+                            <textarea rows="2" maxlength="2000" name="materials[__INDEX__][note]" data-note></textarea>
+                        </label>
+                    </div>
+                </template>
+            </fieldset>
+
+            <label class="field">Cuidados — uma orientação por linha
+                <textarea name="care" required rows="4">{{ draft.care }}</textarea>
+            </label>
+            <label class="field">Feito à mão
+                <textarea class="handmade-field" name="handmade" required rows="7" maxlength="5000">{{ draft.handmade }}</textarea>
+            </label>
+
+            <p class="form-error" role="alert" data-artefact-editor-target="error" {% if not error %}hidden{% endif %}>{{ error }}</p>
+
+            <div class="form-actions">
+                <p class="save-state" data-artefact-editor-target="status" hidden></p>
+                <a class="btn btn-ghost" href="{{ path('admin_records') }}">Cancelar</a>
+                <button type="submit" class="btn" data-submit>{{ draft.locked ? 'Salvar alterações' : 'Criar artefacto' }}</button>
+            </div>
+        </form>
+    </main>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>{% block title %}ORIGENS — Arquivo de peças{% endblock %}</title>
+        <meta name="description" content="{% block description %}Registro individual de peças feitas à mão.{% endblock %}">
+        {% block meta %}{% endblock %}
+        <link rel="icon" href="{{ asset('favicon.png') }}" type="image/png">
+        <link rel="apple-touch-icon" href="{{ asset('favicon.png') }}">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400&family=Instrument+Sans:wght@400;500&display=swap">
+        {% block stylesheets %}{% endblock %}
+        {% block javascripts %}
+            {% block importmap %}{{ importmap('app') }}{% endblock %}
+        {% endblock %}
+
+        {% set frankenphp_hot_reload = app.request.server.get('FRANKENPHP_HOT_RELOAD') %}
+        {% if frankenphp_hot_reload %}
+        <meta name="frankenphp-hot-reload:url" content="{{ frankenphp_hot_reload }}">
+        <script src="https://cdn.jsdelivr.net/npm/idiomorph"></script>
+        <script src="https://cdn.jsdelivr.net/npm/frankenphp-hot-reload/+esm" type="module"></script>
+        {% endif %}
+    </head>
+    <body>
+        {% block body %}{% endblock %}
+    </body>
+</html>

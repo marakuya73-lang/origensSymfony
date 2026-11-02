@@ -1,0 +1,31 @@
+{% extends 'base.html.twig' %}
+{% import '_icon.html.twig' as icons %}
+
+{% block title %}Acesso reservado — ORIGENS{% endblock %}
+{% block description %}Acesso reservado à administração do arquivo ORIGENS.{% endblock %}
+{% block meta %}
+    <meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block body %}
+    <main class="login-page">
+        <div class="login-box">
+            <h1 class="login-wordmark">ORIGENS</h1>
+            <form class="login-form" method="post" action="{{ path('admin_login') }}" data-turbo="false">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+                <input type="hidden" name="_username" value="owner">
+                <label class="label" for="owner-password">Senha</label>
+                <div class="login-row">
+                    <input id="owner-password" name="_password" type="password" autocomplete="current-password" required>
+                    <button type="submit" class="btn btn-ghost btn-icon" aria-label="Entrar" title="Entrar">
+                        {{ icons.svg('arrow-right') }}
+                        <span class="sr-only">Entrar</span>
+                    </button>
+                </div>
+                {% if error %}
+                    <p class="form-error" role="alert">{{ error }}</p>
+                {% endif %}
+            </form>
+        </div>
+    </main>
+{% endblock %}
