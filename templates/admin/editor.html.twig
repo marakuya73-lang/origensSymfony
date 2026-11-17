@@ -24,10 +24,60 @@
             data-action="submit->artefact-editor#guard focusout->artefact-editor#save change->artefact-editor#save"
         >
             <input type="hidden" name="_token" value="{{ csrf_token('submit') }}">
+            <div class="ai-toast" data-profile-assist-target="toast" hidden role="alertdialog" aria-labelledby="ai-toast-title">
+                <p class="ai-toast-kicker" id="ai-toast-title">Não foi possível gerar</p>
+                <p data-profile-assist-target="toastMessage"></p>
+                <div class="assist-actions">
+                    <button type="button" class="btn" data-action="profile-assist#retry">Tentar de novo</button>
+                    <button type="button" class="btn btn-ghost" data-action="profile-assist#dismissToast">Fechar</button>
+                </div>
+            </div>
             <div>
                 <h1 class="editor-title">{{ draft.locked ? 'Editar artefacto' : 'Novo artefacto' }}</h1>
                 <p class="label editor-kicker">{{ draft.code ?: 'ORIGENS · Novo registro' }}</p>
             </div>
+
+            <fieldset class="photo-set photo-lead">
+                <legend>Foto principal</legend>
+                <div class="photo-grid" data-artefact-editor-target="list">
+                    {% for image in draft.images %}
+                        <div class="photo" data-photo>
+                            <img src="{{ asset(image.src) }}" alt="Foto {{ loop.index }}">
+                            <div class="photo-bar">
+                                <span class="label" data-photo-label>{% if loop.first %}Principal{% else %}Foto {{ loop.index }}{% endif %}</span>
+                                <div class="photo-actions">
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="up" data-move-up aria-label="Mover foto {{ loop.index }} antes" title="Mover antes" {% if loop.first %}disabled{% endif %}>{{ icons.svg('arrow-up') }}</button>
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="down" data-move-down aria-label="Mover foto {{ loop.index }} depois" title="Mover depois" {% if loop.last %}disabled{% endif %}>{{ icons.svg('arrow-down') }}</button>
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#remove" aria-label="Remover foto {{ loop.index }}" title="Remover foto">{{ icons.svg('trash') }}</button>
+                                </div>
+                            </div>
+                            <input type="hidden" name="images[]" value="{{ image.path }}">
+                        </div>
+                    {% endfor %}
+                </div>
+                <label class="photo-capture">
+                    {{ icons.svg('upload') }}
+                    <span>
+                        <span class="photo-capture-title" data-artefact-editor-target="uploadLabel">Tirar ou escolher foto</span>
+                        <span class="hint">Câmera ou biblioteca. A primeira é a principal.</span>
+                    </span>
+                    <input class="sr-only" type="file" name="uploads[]" accept="image/*,image/jpeg,image/png,image/webp" multiple data-artefact-editor-target="file" data-action="change->artefact-editor#upload">
+                </label>
+                <template data-artefact-editor-target="photoTemplate">
+                    <div class="photo" data-photo>
+                        <img alt="">
+                        <div class="photo-bar">
+                            <span class="label" data-photo-label>Foto</span>
+                            <div class="photo-actions">
+                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="up" data-move-up aria-label="Mover foto antes" title="Mover antes">{{ icons.svg('arrow-up') }}</button>
+                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="down" data-move-down aria-label="Mover foto depois" title="Mover depois">{{ icons.svg('arrow-down') }}</button>
+                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#remove" aria-label="Remover foto" title="Remover foto">{{ icons.svg('trash') }}</button>
+                            </div>
+                        </div>
+                        <input type="hidden" name="images[]" value="">
+                    </div>
+                </template>
+            </fieldset>
 
             <details class="assist-fold" data-assist>
                 <summary class="assist-summary">✨ Preencher com IA</summary>
@@ -37,23 +87,23 @@
                         <textarea rows="3" maxlength="4000" data-profile-assist-target="notes" placeholder="O que a peça é, de onde veio o material, o que não aparece na foto."></textarea>
                     </label>
                     <div class="recorder" data-slot="intro">
-                        <button type="button" class="btn btn-outline record-btn" data-action="profile-assist#toggleRecord">
+                        <button type="button" class="record-btn" data-action="profile-assist#toggleRecord" aria-pressed="false">
                             <span class="record-dot" aria-hidden="true"></span>
+                            <span class="record-mic" aria-hidden="true">{{ icons.svg('mic') }}</span>
                             <span data-record-label>Gravar</span>
                         </button>
                         <label class="btn btn-ghost">
                             {{ icons.svg('upload') }} Arquivo
-                            <input class="sr-only" type="file" accept="audio/*,.webm,.mp3,.m4a,.wav,.ogg,.aac,.flac" data-action="change->profile-assist#chooseFile">
+                            <input class="sr-only" type="file" accept="audio/*,.webm,.mp3,.m4a,.wav,.ogg,.aac,.flac,.mp4" data-action="change->profile-assist#chooseFile">
                         </label>
                         <div class="record-ready" hidden>
                             <audio controls></audio>
                             <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio" title="Remover áudio">{{ icons.svg('trash') }}</button>
-                            <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#sendClip">Enviar</button>
                         </div>
                     </div>
-                    <p class="hint">Até 3 minutos ou 10 MB. A gravação no navegador pede HTTPS.</p>
+                    <p class="hint">O áudio é opcional.</p>
                     <div class="assist-actions">
-                        <button type="button" class="btn" data-profile-assist-target="generate" data-action="profile-assist#generate">Gerar perfil com IA</button>
+                        <button type="button" class="btn generate-btn" data-profile-assist-target="generate" data-action="profile-assist#generate"><span data-generate-label>✨ Gerar perfil</span></button>
                     </div>
                     <div class="chat" data-profile-assist-target="chat" hidden>
                         <div class="chat-thread" data-profile-assist-target="thread"></div>
@@ -62,25 +112,24 @@
                                 <textarea rows="2" maxlength="2000" data-profile-assist-target="reply" placeholder="Responda por texto, ou grave um áudio abaixo."></textarea>
                             </label>
                             <div class="recorder" data-slot="reply">
-                                <button type="button" class="btn btn-outline record-btn" data-action="profile-assist#toggleRecord">
+                                <button type="button" class="record-btn" data-action="profile-assist#toggleRecord" aria-pressed="false">
                                     <span class="record-dot" aria-hidden="true"></span>
+                                    <span class="record-mic" aria-hidden="true">{{ icons.svg('mic') }}</span>
                                     <span data-record-label>Gravar</span>
                                 </button>
                                 <div class="record-ready" hidden>
                                     <audio controls></audio>
                                     <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio da resposta" title="Remover áudio">{{ icons.svg('trash') }}</button>
-                                    <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#reply">Enviar</button>
                                 </div>
                             </div>
                             <div class="assist-actions">
-                                <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#reply">Enviar</button>
+                                <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#reply">Enviar resposta</button>
                                 <button type="button" class="btn btn-ghost" data-action="profile-assist#endChat">Encerrar</button>
                             </div>
                         </div>
                         <p class="hint" data-profile-assist-target="done" hidden>O perfil está completo. Revise os campos e salve quando quiser.</p>
                         <button type="button" class="btn btn-ghost" data-profile-assist-target="resume" data-action="profile-assist#resume" hidden>Ainda quero ajustar</button>
                     </div>
-                    <p class="form-error" role="alert" data-profile-assist-target="error" hidden></p>
                     <p class="hint" data-profile-assist-target="status" hidden></p>
                 </div>
             </details>
@@ -131,45 +180,6 @@
             <label class="field">Descrição breve (opcional)
                 <textarea name="description" rows="2" maxlength="2000">{{ draft.description }}</textarea>
             </label>
-
-            <fieldset class="photo-set">
-                <legend>Fotografias</legend>
-                <div class="photo-grid" data-artefact-editor-target="list">
-                    {% for image in draft.images %}
-                        <div class="photo" data-photo>
-                            <img src="{{ asset(image.src) }}" alt="Foto {{ loop.index }}">
-                            <div class="photo-bar">
-                                <span class="label" data-photo-label>{% if loop.first %}Principal{% else %}Foto {{ loop.index }}{% endif %}</span>
-                                <div class="photo-actions">
-                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="up" data-move-up aria-label="Mover foto {{ loop.index }} antes" title="Mover antes" {% if loop.first %}disabled{% endif %}>{{ icons.svg('arrow-up') }}</button>
-                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="down" data-move-down aria-label="Mover foto {{ loop.index }} depois" title="Mover depois" {% if loop.last %}disabled{% endif %}>{{ icons.svg('arrow-down') }}</button>
-                                    <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#remove" aria-label="Remover foto {{ loop.index }}" title="Remover foto">{{ icons.svg('trash') }}</button>
-                                </div>
-                            </div>
-                            <input type="hidden" name="images[]" value="{{ image.path }}">
-                        </div>
-                    {% endfor %}
-                </div>
-                <label class="btn btn-outline upload-btn">
-                    {{ icons.svg('upload') }}
-                    <span data-artefact-editor-target="uploadLabel">Adicionar fotos</span>
-                    <input class="sr-only" type="file" name="uploads[]" accept="image/jpeg,image/png,image/webp" multiple data-artefact-editor-target="file" data-action="change->artefact-editor#upload">
-                </label>
-                <template data-artefact-editor-target="photoTemplate">
-                    <div class="photo" data-photo>
-                        <img alt="">
-                        <div class="photo-bar">
-                            <span class="label" data-photo-label>Foto</span>
-                            <div class="photo-actions">
-                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="up" data-move-up aria-label="Mover foto antes" title="Mover antes">{{ icons.svg('arrow-up') }}</button>
-                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#move" data-artefact-editor-direction-param="down" data-move-down aria-label="Mover foto depois" title="Mover depois">{{ icons.svg('arrow-down') }}</button>
-                                <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#remove" aria-label="Remover foto" title="Remover foto">{{ icons.svg('trash') }}</button>
-                            </div>
-                        </div>
-                        <input type="hidden" name="images[]" value="">
-                    </div>
-                </template>
-            </fieldset>
 
             <fieldset class="material-set">
                 <legend>Materiais e notas</legend>

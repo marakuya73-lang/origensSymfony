@@ -4,7 +4,7 @@ const MAX_AUDIO = 10 * 1024 * 1024;
 const MAX_RECORDING = 180000;
 
 export default class extends Controller {
-    static targets = ['notes', 'generate', 'error', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume'];
+    static targets = ['notes', 'generate', 'toast', 'toastMessage', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume'];
     static values = { url: String, token: String };
 
     connect() {
@@ -50,7 +50,11 @@ export default class extends Controller {
             return;
         }
 
-        const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((type) => MediaRecorder.isTypeSupported(type)) || '';
+        const safari = this.isSafari();
+        const types = safari
+            ? ['audio/mp4', 'audio/aac', 'audio/webm']
+            : ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+        const mime = types.find((type) => MediaRecorder.isTypeSupported(type)) || '';
         try {
             this.recorder = mime === '' ? new MediaRecorder(stream) : new MediaRecorder(stream, { mimeType: mime });
         } catch {
@@ -69,7 +73,15 @@ export default class extends Controller {
             }
         });
         this.recorder.addEventListener('stop', () => this.finishRecording());
-        this.recorder.start();
+        try {
+            if (this.isSafari()) {
+                this.recorder.start();
+            } else {
+                this.recorder.start(1000);
+            }
+        } catch {
+            this.recorder.start();
+        }
         this.slots[slot].file = null;
         button.classList.add('is-recording');
         button.classList.remove('has-clip');
@@ -85,6 +97,11 @@ export default class extends Controller {
         window.clearTimeout(this.limit);
         this.timer = null;
         if (this.recorder?.state === 'recording') {
+            try {
+                this.recorder.requestData();
+            } catch {
+                // iOS Safari can refuse requestData() just before stop.
+            }
             this.recorder.stop();
             return;
         }
@@ -100,7 +117,7 @@ export default class extends Controller {
             button.classList.remove('is-recording');
             button.setAttribute('aria-pressed', 'false');
         }
-        const type = this.recorder?.mimeType || 'audio/webm';
+        const type = this.recorder?.mimeType || (this.isSafari() ? 'audio/mp4' : 'audio/webm');
         const blob = new Blob(this.chunks || [], { type });
         this.chunks = [];
         this.activeSlot = null;
@@ -159,21 +176,6 @@ export default class extends Controller {
         this.paintIdle(slot, root?.querySelector('.record-btn'));
     }
 
-    sendClip(event) {
-        event.preventDefault();
-        const slot = this.slotOf(event);
-        if (slot === 'reply') {
-            this.reply(event);
-            return;
-        }
-        if (!this.audioFor(true)) {
-            this.showError('Grave ou escolha um áudio antes de enviar.');
-            return;
-        }
-        this.history = [];
-        this.ask({ first: true });
-    }
-
     async generate(event) {
         event.preventDefault();
         this.history = [];
@@ -204,20 +206,28 @@ export default class extends Controller {
     }
 
     async ask({ first, answer = '' }) {
+        if (this.busy) {
+            return;
+        }
+        this.pending = { first, answer };
         if (this.recorder?.state === 'recording') {
-            this.showError('Pare a gravação antes de continuar.');
+            this.showError('A gravação ainda está aberta. Toque de novo no microfone para parar e depois gere o perfil.');
             return;
         }
 
         const image = this.element.querySelector('[name="images[]"]')?.value || '';
         if (!image) {
-            this.showError('Envie pelo menos uma foto da peça antes de gerar o perfil.');
+            this.showError('Falta a foto principal. Toque em “Tirar ou escolher foto”, acima, e tente de novo.');
             return;
         }
 
         const editor = this.application.getControllerForElementAndIdentifier(this.element, 'artefact-editor');
         if (!editor || typeof editor.applyProfile !== 'function') {
             this.showError('Não foi possível preencher o formulário. Recarregue a página.');
+            return;
+        }
+        if (editor.uploading) {
+            this.showError('A foto ainda está a caminho. Espere a miniatura aparecer e toque em Gerar perfil de novo.');
             return;
         }
 
@@ -235,12 +245,10 @@ export default class extends Controller {
             body.append('audio', audio, name);
         }
 
-        this.generateTarget.disabled = true;
-        this.sendTargets.forEach((button) => {
-            button.disabled = true;
-        });
+        this.setBusy(true);
+        this.dismissToast();
         this.clearMessage();
-        this.setStatus(first ? 'Gerando perfil…' : 'Atualizando perfil…');
+        this.setStatus(first ? 'Gerando…' : 'Atualizando…');
         try {
             const response = await fetch(this.urlValue, {
                 method: 'POST',
@@ -270,11 +278,42 @@ export default class extends Controller {
         } catch {
             this.showError('Não foi possível gerar o perfil agora. Tente novamente em instantes.');
         } finally {
-            this.generateTarget.disabled = false;
-            this.sendTargets.forEach((button) => {
-                button.disabled = false;
-            });
+            this.setBusy(false);
         }
+    }
+
+    retry(event) {
+        event.preventDefault();
+        if (!this.pending || this.busy) {
+            return;
+        }
+        this.ask(this.pending);
+    }
+
+    dismissToast() {
+        if (this.hasToastTarget) {
+            this.toastTarget.hidden = true;
+        }
+    }
+
+    setBusy(on) {
+        this.busy = on;
+        if (this.hasGenerateTarget) {
+            this.generateTarget.disabled = on;
+            this.generateTarget.classList.toggle('is-busy', on);
+            this.generateTarget.setAttribute('aria-busy', on ? 'true' : 'false');
+            const label = this.generateTarget.querySelector('[data-generate-label]');
+            if (label) {
+                label.textContent = on ? 'Gerando…' : '✨ Gerar perfil';
+            }
+        }
+        this.sendTargets.forEach((button) => {
+            button.disabled = on;
+        });
+    }
+
+    isSafari() {
+        return /safari/i.test(navigator.userAgent) && !/chrome|crios|android|edg/i.test(navigator.userAgent);
     }
 
     audioFor(first) {
@@ -419,14 +458,20 @@ export default class extends Controller {
     }
 
     showError(message) {
-        this.errorTarget.hidden = false;
-        this.errorTarget.textContent = message;
+        if (this.hasToastMessageTarget) {
+            this.toastMessageTarget.textContent = message;
+        }
+        if (this.hasToastTarget) {
+            this.toastTarget.hidden = false;
+        }
         this.setStatus('');
     }
 
     clearMessage() {
-        this.errorTarget.hidden = true;
-        this.errorTarget.textContent = '';
+        this.dismissToast();
+        if (this.hasToastMessageTarget) {
+            this.toastMessageTarget.textContent = '';
+        }
     }
 
     setStatus(message) {
