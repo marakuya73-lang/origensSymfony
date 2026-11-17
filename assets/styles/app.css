@@ -320,10 +320,50 @@ fieldset:disabled { opacity: 0.6; }
 .select-all { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.75rem; font-size: 0.875rem; }
 .row-price-desktop { display: none; }
 .row-price-mobile { margin-top: 0.35rem; }
-.assist { display: grid; gap: 0.9rem; border: 1px solid var(--rule); padding: 1rem 1rem 1.1rem; }
+.assist-fold { border: 1px solid var(--rule); }
+.assist-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.75rem 0.9rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.875rem;
+}
+.assist-summary::-webkit-details-marker { display: none; }
+.assist-fold[open] > .assist-summary { border-bottom: 1px solid var(--rule); }
+.assist-body { display: grid; gap: 0.9rem; padding: 1rem 0.9rem 1.1rem; }
 .assist-lead { font-size: 0.875rem; line-height: 1.5; }
-.assist audio { width: min(100%, 24rem); }
-.assist .hint { margin-top: 0; }
+.assist-body audio { width: min(100%, 16rem); }
+.assist-body .hint { margin-top: 0; }
+.recorder { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.record-ready { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.record-ready[hidden] { display: none; }
+.record-dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: currentColor;
+    display: none;
+}
+.record-btn.is-recording {
+    background: oklch(0.5 0.16 25);
+    border-color: oklch(0.5 0.16 25);
+    color: white;
+}
+.record-btn.is-recording .record-dot { display: inline-block; animation: record-pulse 1s ease-in-out infinite; }
+.record-btn.has-clip {
+    background: transparent;
+    color: var(--olive);
+    border-color: var(--olive);
+}
+@keyframes record-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .record-btn.is-recording .record-dot { animation: none; }
+}
 .chat { display: grid; gap: 0.75rem; border-top: 1px solid var(--rule); padding-top: 0.9rem; }
 .chat-thread { display: grid; gap: 0.45rem; max-height: 16rem; overflow: auto; }
 .chat-bubble { margin: 0; max-width: 36rem; border: 1px solid var(--rule); padding: 0.55rem 0.7rem; font-size: 0.875rem; line-height: 1.45; white-space: pre-wrap; }
