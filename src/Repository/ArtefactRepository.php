@@ -30,6 +30,50 @@ class ArtefactRepository extends ServiceEntityRepository
         return $rows;
     }
 
+    /**
+     * @param list<mixed> $ids
+     *
+     * @return list<Artefact>
+     */
+    public function findSelected(array $ids): array
+    {
+        $wanted = [];
+        foreach ($ids as $id) {
+            if (!is_string($id)) {
+                continue;
+            }
+            $id = strtolower($id);
+            if (1 !== preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $id) || in_array($id, $wanted, true)) {
+                continue;
+            }
+            $wanted[] = $id;
+        }
+        if ($wanted === []) {
+            return [];
+        }
+
+        /** @var list<Artefact> $rows */
+        $rows = $this->createQueryBuilder('a')
+            ->andWhere('a.id IN (:ids)')
+            ->setParameter('ids', $wanted)
+            ->getQuery()
+            ->getResult();
+
+        $byId = [];
+        foreach ($rows as $row) {
+            $byId[$row->getId()] = $row;
+        }
+
+        $ordered = [];
+        foreach ($wanted as $id) {
+            if (isset($byId[$id])) {
+                $ordered[] = $byId[$id];
+            }
+        }
+
+        return $ordered;
+    }
+
     public function findByToken(string $token): ?Artefact
     {
         $artefact = $this->findOneBy(['publicToken' => $token]);

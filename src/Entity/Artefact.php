@@ -60,6 +60,9 @@ class Artefact
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
+    #[ORM\Column(type: Types::INTEGER, nullable: true)]
+    private ?int $salePriceCents = null;
+
     public function __construct()
     {
         $this->id = Identifier::uuid();
@@ -160,6 +163,11 @@ class Artefact
         return $this->createdAt;
     }
 
+    public function getSalePriceCents(): ?int
+    {
+        return $this->salePriceCents;
+    }
+
     public function createdOn(): string
     {
         return $this->createdAt
@@ -177,5 +185,6 @@ class Artefact
         $this->handmade = $data->handmade;
         $this->images = array_values($data->images);
         $this->recordDate = $data->recordDate;
+        $this->salePriceCents = $data->salePriceCents;
     }
 }

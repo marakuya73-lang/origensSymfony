@@ -66,6 +66,35 @@ final class ImageStore
         return 'uploads/artefacts/'.$relative;
     }
 
+    public function read(string $relative): string
+    {
+        $full = $this->absolute($relative);
+        if ($full === null) {
+            throw new InvalidArtefact('Envie pelo menos uma foto da peça antes de gerar o perfil.');
+        }
+
+        $contents = file_get_contents($full);
+        if ($contents === false || $contents === '') {
+            throw new InvalidArtefact('Envie pelo menos uma foto da peça antes de gerar o perfil.');
+        }
+
+        return $contents;
+    }
+
+    public function mimeType(string $relative): string
+    {
+        if ($this->absolute($relative) === null) {
+            throw new InvalidArtefact('Envie pelo menos uma foto da peça antes de gerar o perfil.');
+        }
+
+        return match (strtolower(pathinfo($relative, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            default => throw new InvalidArtefact('Envie pelo menos uma foto da peça antes de gerar o perfil.'),
+        };
+    }
+
     public function exists(string $relative): bool
     {
         return $this->absolute($relative) !== null;

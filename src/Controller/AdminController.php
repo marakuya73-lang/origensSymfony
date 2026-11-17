@@ -7,13 +7,21 @@ namespace App\Controller;
 use App\Artefact\ArtefactDraft;
 use App\Artefact\ArtefactRegistrar;
 use App\Artefact\ArtefactRules;
+use App\Artefact\AudioClip;
+use App\Artefact\GeminiProfileGenerator;
 use App\Artefact\ImageStore;
 use App\Artefact\InvalidArtefact;
+use App\Artefact\ProfileExchange;
+use App\Artefact\ProfileGenerationFailed;
+use App\Artefact\SalePrice;
+use App\Artefact\SellerTable;
 use App\Artefact\SubmissionParser;
+use App\Artefact\TabularFile;
 use App\Entity\Artefact;
 use App\Repository\ArtefactRepository;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,31 +35,121 @@ final class AdminController extends AbstractController
         private ArtefactRegistrar $registrar,
         private SubmissionParser $parser,
         private ImageStore $images,
+        private GeminiProfileGenerator $profiles,
+        private SellerTable $sheet,
+        private TabularFile $files,
     ) {
     }
 
     #[Route('/admin/records', name: 'admin_records', methods: ['GET'])]
     public function records(Request $request): Response
     {
-        $rows = [];
-        foreach ($this->artefacts->recent() as $artefact) {
-            $photos = $artefact->getImages();
-            $first = $photos[0] ?? null;
-            $token = $artefact->getPublicToken();
-            $rows[] = [
-                'id' => $artefact->getId(),
-                'code' => $artefact->getCode(),
-                'title' => $artefact->getTitle(),
-                'createdOn' => $artefact->createdOn(),
-                'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,
-                'url' => ArtefactRules::isValidToken($token)
-                    ? $request->getSchemeAndHttpHost().ArtefactRules::publicPath($token)
-                    : '',
-                'path' => ArtefactRules::isValidToken($token) ? ArtefactRules::publicPath($token) : '',
-            ];
+        return $this->listing($request);
+    }
+
+    #[Route('/admin/records/profile', name: 'admin_artefact_profile', methods: ['POST'])]
+    public function profile(Request $request): JsonResponse
+    {
+        if (!$this->isCsrfTokenValid('submit', $request->request->getString('_token'))) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível gerar o perfil. Tente novamente.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        return $this->admin('admin/records.html.twig', ['rows' => $rows]);
+        try {
+            $path = $request->request->getString('image');
+            $notes = $request->request->getString('notes');
+            $answer = $request->request->getString('answer');
+            $image = $this->images->read($path);
+            $mime = $this->images->mimeType($path);
+            $audio = AudioClip::read($request->files->get('audio'));
+            $history = ProfileExchange::history($request->request->getString('history'));
+            $form = ProfileExchange::form($request->request->getString('form'));
+            $touched = ProfileExchange::touched($request->request->getString('touched'));
+        } catch (InvalidArtefact $exception) {
+            return $this->json(['ok' => false, 'error' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (BadRequestException) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível gerar o perfil. Tente novamente.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (mb_strlen($notes) > 4000) {
+            return $this->json(['ok' => false, 'error' => 'As notas podem ter até 4000 caracteres.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if (mb_strlen($answer) > 2000) {
+            return $this->json(['ok' => false, 'error' => 'A resposta pode ter até 2000 caracteres.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($history !== [] && trim($answer) === '' && $audio === null) {
+            return $this->json(['ok' => false, 'error' => ProfileExchange::ANSWER_REQUIRED], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $audioBytes = null;
+        $audioMime = null;
+        if ($audio !== null) {
+            [$audioBytes, $audioMime] = $audio;
+        }
+
+        try {
+            $turn = $this->profiles->suggest($image, $mime, $audioBytes, $audioMime, $notes, $answer, $history, $form, $touched);
+        } catch (ProfileGenerationFailed $exception) {
+            return $this->json(['ok' => false, 'error' => $exception->getMessage()], $exception->status());
+        }
+
+        $profile = ProfileExchange::merge($turn->profile, $form, $touched, $turn->changed);
+
+        return $this->json([
+            'ok' => true,
+            'profile' => $profile->toArray(),
+            'questions' => $turn->questions,
+            'complete' => $turn->complete,
+            'changed' => $turn->changed,
+        ]);
+    }
+
+    #[Route('/admin/records/export', name: 'admin_artefact_export', methods: ['POST'])]
+    public function export(Request $request): Response
+    {
+        if (!$this->isCsrfTokenValid('export', $request->request->getString('_token'))) {
+            return $this->redirectToRoute('admin_records');
+        }
+
+        try {
+            $ids = $request->request->all('ids');
+        } catch (BadRequestException) {
+            $ids = [];
+        }
+
+        $format = $request->request->getString('format');
+        if (!in_array($format, ['csv', 'xlsx'], true)) {
+            return $this->listing($request, 'Escolha CSV ou XLSX para exportar.', Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $selected = $this->artefacts->findSelected($ids);
+        if ($selected === []) {
+            return $this->listing($request, 'Selecione ao menos uma peça para exportar.', Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $table = $this->sheet->build($selected, $request->getSchemeAndHttpHost().$request->getBasePath());
+        $day = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
+        try {
+            if ($format === 'xlsx') {
+                $body = $this->files->xlsx($table['headers'], $table['rows'], $table['priceColumn']);
+                $type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                $filename = 'origens-artefactos-'.$day.'.xlsx';
+            } else {
+                $body = $this->files->csv($table['headers'], $table['rows']);
+                $type = 'text/csv; charset=UTF-8';
+                $filename = 'origens-artefactos-'.$day.'.csv';
+            }
+        } catch (\RuntimeException) {
+            return $this->listing($request, 'Não foi possível gerar a planilha. Tente o CSV.', Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $response = new Response($body);
+        $response->headers->set('Content-Type', $type);
+        $response->headers->set('Content-Disposition', 'attachment; filename="'.$filename.'"');
+        $response->headers->set('Cache-Control', 'no-store');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('X-Robots-Tag', 'noindex, nofollow');
+
+        return $response;
     }
 
     #[Route('/admin/records/new', name: 'admin_artefact_new', methods: ['GET', 'POST'])]
@@ -195,6 +293,34 @@ final class AdminController extends AbstractController
                 ? $this->generateUrl('admin_artefact_edit', ['id' => $current->getId()])
                 : $this->generateUrl('admin_artefact_new'),
             'uploadUrl' => $this->generateUrl('admin_artefact_upload'),
+            'profileUrl' => $this->generateUrl('admin_artefact_profile'),
+        ], $status);
+    }
+
+    private function listing(Request $request, string $exportError = '', int $status = 200): Response
+    {
+        $rows = [];
+        foreach ($this->artefacts->recent() as $artefact) {
+            $photos = $artefact->getImages();
+            $first = $photos[0] ?? null;
+            $token = $artefact->getPublicToken();
+            $rows[] = [
+                'id' => $artefact->getId(),
+                'code' => $artefact->getCode(),
+                'title' => $artefact->getTitle(),
+                'createdOn' => $artefact->createdOn(),
+                'price' => SalePrice::brl($artefact->getSalePriceCents()),
+                'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,
+                'url' => ArtefactRules::isValidToken($token)
+                    ? $request->getSchemeAndHttpHost().ArtefactRules::publicPath($token)
+                    : '',
+                'path' => ArtefactRules::isValidToken($token) ? ArtefactRules::publicPath($token) : '',
+            ];
+        }
+
+        return $this->admin('admin/records.html.twig', [
+            'rows' => $rows,
+            'exportError' => $exportError,
         ], $status);
     }
 

@@ -24,6 +24,7 @@ final readonly class ArtefactData
         public string $handmade,
         public array $images,
         public \DateTimeImmutable $recordDate,
+        public ?int $salePriceCents = null,
     ) {
     }
 
@@ -42,6 +43,7 @@ final readonly class ArtefactData
         string $handmade,
         array $imagePaths,
         string $recordDate,
+        ?int $salePriceCents = null,
     ): self {
         if (count($imagePaths) > 12) {
             throw new InvalidArtefact('Selecione até 12 fotos por peça.');
@@ -85,6 +87,7 @@ final readonly class ArtefactData
             $handmade,
             $images,
             $date,
+            $salePriceCents,
         );
     }
 

@@ -25,6 +25,7 @@ final class ArtefactDraft
         public array $images,
         public bool $locked,
         public ?string $code,
+        public string $salePrice = '',
     ) {
     }
 
@@ -43,6 +44,7 @@ final class ArtefactDraft
             images: [],
             locked: false,
             code: null,
+            salePrice: '',
         );
     }
 
@@ -61,6 +63,7 @@ final class ArtefactDraft
             images: self::views($artefact->getImages(), $images),
             locked: true,
             code: $artefact->getCode(),
+            salePrice: SalePrice::input($artefact->getSalePriceCents()),
         );
     }
 
@@ -81,6 +84,7 @@ final class ArtefactDraft
         array $paths,
         ImageStore $images,
         ?Artefact $current,
+        string $salePrice = '',
     ): self {
         if (!in_array($size, ['P', 'M', 'G'], true)) {
             $size = 'M';
@@ -105,6 +109,7 @@ final class ArtefactDraft
             images: self::views($paths, $images),
             locked: $current !== null,
             code: $current?->getCode(),
+            salePrice: $salePrice,
         );
     }
 
