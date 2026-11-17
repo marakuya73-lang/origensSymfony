@@ -14,6 +14,8 @@ export default class extends Controller {
             reply: { clip: null, file: null, url: '' },
         };
         this.activeSlot = null;
+        this.onVisibility = () => this.handleVisibility();
+        document.addEventListener('visibilitychange', this.onVisibility);
         if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
             this.element.querySelectorAll('.record-btn').forEach((button) => {
                 button.hidden = true;
@@ -22,7 +24,9 @@ export default class extends Controller {
     }
 
     disconnect() {
+        document.removeEventListener('visibilitychange', this.onVisibility);
         this.stopRecording();
+        this.releaseWakeLock();
         Object.keys(this.slots).forEach((slot) => this.revokeSlot(slot));
     }
 
@@ -38,6 +42,7 @@ export default class extends Controller {
             return;
         }
         this.startRecording(slot, event.currentTarget);
+        this.holdScreen();
     }
 
     async startRecording(slot, button) {
@@ -68,17 +73,22 @@ export default class extends Controller {
         this.stream = stream;
         this.chunks = [];
         this.recorder.addEventListener('dataavailable', (event) => {
-            if (event.data.size > 0) {
+            if (event.data && event.data.size > 0) {
                 this.chunks.push(event.data);
             }
         });
-        this.recorder.addEventListener('stop', () => this.finishRecording());
+        this.recorder.addEventListener('stop', () => {
+            window.setTimeout(() => this.assembleClip(), 150);
+        }, { once: true });
+        stream.getAudioTracks().forEach((track) => {
+            track.addEventListener('ended', () => {
+                if (this.recorder?.state === 'recording') {
+                    this.stopRecording();
+                }
+            });
+        });
         try {
-            if (this.isSafari()) {
-                this.recorder.start();
-            } else {
-                this.recorder.start(1000);
-            }
+            this.recorder.start(1000);
         } catch {
             this.recorder.start();
         }
@@ -90,52 +100,104 @@ export default class extends Controller {
         this.paintTimer();
         this.timer = window.setInterval(() => this.paintTimer(), 250);
         this.limit = window.setTimeout(() => this.stopRecording(), MAX_RECORDING);
+        this.setGenerateEnabled(false);
+    }
+
+    holdScreen() {
+        if (!navigator.wakeLock?.request || this.wakeLock) {
+            return;
+        }
+        navigator.wakeLock.request('screen').then((lock) => {
+            this.wakeLock = lock;
+        }).catch(() => {
+            this.wakeLock = null;
+        });
+    }
+
+    releaseWakeLock() {
+        const lock = this.wakeLock;
+        this.wakeLock = null;
+        if (!lock) {
+            return;
+        }
+        lock.release().catch(() => {});
+    }
+
+    handleVisibility() {
+        if (document.visibilityState === 'hidden' && this.recorder?.state === 'recording') {
+            this.stopRecording();
+            return;
+        }
+        if (document.visibilityState === 'visible' && this.recorder?.state === 'recording') {
+            this.holdScreen();
+        }
+    }
+
+    setGenerateEnabled(on) {
+        if (!this.hasGenerateTarget || this.busy) {
+            return;
+        }
+        const clip = this.slots.intro?.clip;
+        const file = this.slots.intro?.file;
+        const broken = (clip && clip.size <= 0) || (file && file.size <= 0);
+        this.generateTarget.disabled = !on || broken;
     }
 
     stopRecording() {
         window.clearInterval(this.timer);
         window.clearTimeout(this.limit);
         this.timer = null;
-        if (this.recorder?.state === 'recording') {
-            try {
-                this.recorder.requestData();
-            } catch {
-                // iOS Safari can refuse requestData() just before stop.
-            }
-            this.recorder.stop();
+        const recorder = this.recorder;
+        if (!recorder || recorder.state !== 'recording' || this.stopping) {
             return;
         }
-        this.releaseStream();
+        this.stopping = true;
+        this.capturedMs = Math.max(0, Date.now() - (this.startedAt || Date.now()));
+        try {
+            recorder.stop();
+        } catch {
+            this.stopping = false;
+            this.assembleClip();
+        }
     }
 
-    finishRecording() {
+    assembleClip() {
         const slot = this.activeSlot;
         const button = this.recordButton;
+        const type = this.recorder?.mimeType || (this.isSafari() ? 'audio/mp4' : 'audio/webm');
+        const blob = new Blob(this.chunks || [], { type: type || 'audio/mp4' });
+        this.chunks = [];
+        this.stopping = false;
+        this.activeSlot = null;
         this.releaseStream();
-        window.clearInterval(this.timer);
+        this.releaseWakeLock();
         if (button) {
             button.classList.remove('is-recording');
             button.setAttribute('aria-pressed', 'false');
         }
-        const type = this.recorder?.mimeType || (this.isSafari() ? 'audio/mp4' : 'audio/webm');
-        const blob = new Blob(this.chunks || [], { type });
-        this.chunks = [];
-        this.activeSlot = null;
-        if (!slot || !blob.size) {
+        if (!slot || blob.size <= 0) {
             this.paintIdle(slot, button);
-            this.showError('A gravação ficou vazia. Tente novamente ou envie um arquivo.');
+            this.setGenerateEnabled(true);
+            this.showError('A gravação ficou vazia. Grave de novo por alguns segundos, ou envie um arquivo.');
             return;
         }
         this.slots[slot].clip = blob;
         this.slots[slot].file = null;
+        this.slots[slot].durationMs = this.capturedMs || 0;
         this.showReady(slot, blob);
         this.paintIdle(slot, button);
+        this.setGenerateEnabled(true);
     }
 
     chooseFile(event) {
         const slot = this.slotOf(event);
         const file = event.target.files?.[0];
         if (!slot || !file) {
+            return;
+        }
+        if (file.size <= 0) {
+            event.target.value = '';
+            this.showError('A gravação ficou vazia. Grave de novo por alguns segundos, ou envie um arquivo.');
             return;
         }
         if (file.size > MAX_AUDIO) {
@@ -145,6 +207,7 @@ export default class extends Controller {
         }
         this.slots[slot].clip = null;
         this.slots[slot].file = file;
+        this.slots[slot].durationMs = 0;
         this.showReady(slot, file);
         this.paintIdle(slot, event.currentTarget.closest('.recorder')?.querySelector('.record-btn'));
     }
@@ -322,7 +385,14 @@ export default class extends Controller {
             return null;
         }
 
-        return slot.clip || slot.file || null;
+        if (slot.clip && slot.clip.size > 0) {
+            return slot.clip;
+        }
+        if (slot.file && slot.file.size > 0) {
+            return slot.file;
+        }
+
+        return null;
     }
 
     remember(first, answer, hadAudio, payload) {
@@ -372,6 +442,18 @@ export default class extends Controller {
         this.slots[slot].url = URL.createObjectURL(blob);
         player.src = this.slots[slot].url;
         ready.hidden = false;
+        const duration = root.querySelector('[data-record-duration]');
+        if (duration) {
+            const ms = this.slots[slot].durationMs || 0;
+            duration.hidden = ms <= 0;
+            duration.textContent = ms > 0 ? this.clock(ms) : '';
+        }
+    }
+
+    clock(ms) {
+        const seconds = Math.max(0, Math.round(ms / 1000));
+
+        return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
     }
 
     paintTimer() {
@@ -379,10 +461,9 @@ export default class extends Controller {
             return;
         }
         const elapsed = Math.min(MAX_RECORDING, Date.now() - this.startedAt);
-        const seconds = Math.floor(elapsed / 1000);
         const label = this.recordButton.querySelector('[data-record-label]');
         if (label) {
-            label.textContent = `Gravando… ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+            label.textContent = `Gravando… ${this.clock(elapsed)}`;
         }
     }
 
