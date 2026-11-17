@@ -12,6 +12,8 @@ final class ArtefactRules
 
     public const PENDING = 'informação a documentar';
 
+    public const DESCRIPTION_MAX = 8000;
+
     public const CODE_PATTERN = '/^[PMG]-CAT[123]-\d{3,}$/';
 
     public const TOKEN_PATTERN = '/^[a-f0-9]{32}$/';

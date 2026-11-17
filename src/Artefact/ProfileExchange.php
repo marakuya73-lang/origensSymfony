@@ -46,7 +46,7 @@ final class ProfileExchange
 
         return [
             'title' => self::text($decoded['title'] ?? '', 180),
-            'description' => self::text($decoded['description'] ?? '', 2000),
+            'description' => self::text($decoded['description'] ?? '', ArtefactRules::DESCRIPTION_MAX),
             'dimensions' => self::text($decoded['dimensions'] ?? '', 100),
             'materials' => self::materials($decoded['materials'] ?? []),
             'care' => self::care($decoded['care'] ?? []),
@@ -86,13 +86,25 @@ final class ProfileExchange
 
         return new GeneratedProfile(
             $keep('title') && $form['title'] !== '' ? $form['title'] : $suggested->title,
-            $keep('description') ? $form['description'] : $suggested->description,
+            $keep('description') ? $form['description'] : self::description($form['description'], $suggested->description, in_array('description', $changed, true)),
             $keep('dimensions') ? $form['dimensions'] : $suggested->dimensions,
             $keep('materials') && $materials !== [] ? $materials : $suggested->materials,
             $keep('care') && $form['care'] !== [] ? $form['care'] : $suggested->care,
             $keep('handmade') && $form['handmade'] !== '' ? $form['handmade'] : $suggested->handmade,
             $keep('size') && $form['size'] !== '' ? $form['size'] : $suggested->size,
         );
+    }
+
+    private static function description(string $current, string $suggested, bool $rewrite): string
+    {
+        if ($rewrite || $current === '') {
+            return $suggested;
+        }
+        if ($suggested === '' || mb_strlen($suggested) < mb_strlen($current)) {
+            return $current;
+        }
+
+        return $suggested;
     }
 
     private static function text(mixed $value, int $max): string

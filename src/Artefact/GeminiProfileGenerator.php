@@ -93,7 +93,7 @@ final class GeminiProfileGenerator
                     'system_instruction' => $this->instruction(),
                     'generation_config' => [
                         'thinking_level' => 'low',
-                        'max_output_tokens' => 8192,
+                        'max_output_tokens' => 16384,
                     ],
                     'response_format' => [
                         'type' => 'text',
@@ -174,10 +174,12 @@ final class GeminiProfileGenerator
             'Todo o texto em português do Brasil.',
             'O nome é poético e evocativo: uma frase curta, uma metáfora ou um título com jeito de verso. Inspire-se na poesia brasileira, na MPB e na bossa nova, no folclore, nas paisagens, nas heranças indígena e afro-brasileira e nas falas regionais.',
             'Não dê à peça um nome que apenas descreva o material ou a cor. "Pedra Azul" é um nome literal; prefira uma imagem, como um verso.',
-            'A descrição é lírica e sensível, mas fiel ao que a fotografia, o áudio e as notas realmente mostram: material, cor, forma, textura e uso.',
-            'Não invente procedência, povo, autor, oficina, data ou preço. Se a origem não foi dita nem é visível, não a afirme.',
+            'A descrição preserva e desenvolve tudo o que a pessoa disse no áudio e nas notas: a história, a narrativa de origem, os sentidos espiritual, energético e simbólico, e as intenções. Teça isso num texto lírico, em português do Brasil, com quantos parágrafos o relato pedir. Não resuma, não encurte e não censure conteúdo espiritual. A fala dela é a fonte principal; a foto só completa o que se vê.',
+            'Não invente procedência, povo, autor, oficina, data ou preço. Se ela não falou de origem, não a afirme.',
+            'Se o formulário já tiver uma descrição, devolva esse texto por inteiro e só o enriqueça. Nunca substitua uma descrição por uma versão mais curta, salvo se a última resposta pedir explicitamente para reescrevê-la. Nesse caso, inclua description em changed.',
             'O preço de venda não faz parte deste perfil e não deve ser preenchido nem alterado.',
-            'Dimensão, materiais e cuidados são factuais e simples. O nome do material é o nome real, com uma nota curta e concreta. Cuidados são orientações práticas, uma por item.',
+            'Materiais: um item para cada material dito no áudio ou nas notas e para cada material visível. Três materiais ditos são três itens, com o nome real de cada um. Não deixe só o primeiro e não junte os nomes num único campo. A nota é o detalhe daquele material, se houver.',
+            'Dimensão e cuidados são factuais. Cuidados são orientações práticas, uma por item.',
             'Feito à mão pode ter calor, sem inventar uma biografia.',
             'Se um campo importante estiver vazio ou incerto, faça no máximo duas perguntas curtas, em português do Brasil.',
             'Quando não houver lacuna importante, marque complete como true e deixe questions vazio.',
@@ -238,17 +240,18 @@ final class GeminiProfileGenerator
             'additionalProperties' => false,
             'properties' => [
                 'title' => $text('Título poético em português do Brasil: metáfora ou verso curto, nunca a descrição literal do material.'),
-                'description' => $text('Texto lírico e fiel ao que se vê e ao que foi dito. Sem origem, povo ou autor inventados.'),
+                'description' => $text('Texto lírico em português do Brasil, com os parágrafos necessários para guardar a história, a origem narrada, os sentidos espiritual, energético e simbólico e as intenções. Não resuma nem encurte. Não invente fatos. Numa conversa seguinte, devolva a descrição inteira e só acrescente.'),
                 'dimensions' => $text('Dimensão aproximada, como "aproximadamente 18 cm". Vazia se não der para estimar.'),
                 'materials' => [
                     'type' => 'array',
-                    'maxItems' => 12,
+                    'description' => 'Todos os materiais ditos e visíveis, um objeto por material. Não omita nenhum e não junte dois nomes no mesmo item.',
+                    'maxItems' => 30,
                     'items' => [
                         'type' => 'object',
                         'additionalProperties' => false,
                         'properties' => [
-                            'name' => $text('Nome real do material, simples e factual.'),
-                            'note' => $text('Nota factual e curta. Vazia se não houver.'),
+                            'name' => $text('Um único material, o nome real. Sem vírgula e sem "e".'),
+                            'note' => $text('Detalhe só desse material, se foi dito. Vazia se não houver.'),
                         ],
                         'required' => ['name', 'note'],
                     ],

@@ -62,7 +62,7 @@ final readonly class ArtefactData
             && in_array($category, [1, 2, 3], true)
             && $title !== ''
             && mb_strlen($title) <= 180
-            && mb_strlen($description) <= 2000
+            && mb_strlen($description) <= ArtefactRules::DESCRIPTION_MAX
             && mb_strlen($dimensions) <= 100
             && $normalizedMaterials !== null
             && $lines !== null

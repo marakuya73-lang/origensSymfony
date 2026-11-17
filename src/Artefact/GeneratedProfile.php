@@ -34,7 +34,7 @@ final readonly class GeneratedProfile
 
         return new self(
             $title,
-            self::text($payload['description'] ?? '', 2000),
+            self::text($payload['description'] ?? '', ArtefactRules::DESCRIPTION_MAX),
             self::text($payload['dimensions'] ?? '', 100),
             $materials,
             $care,
@@ -75,26 +75,67 @@ final readonly class GeneratedProfile
     /** @return list<array{name: string, note: string}> */
     private static function materials(mixed $value): array
     {
+        if (is_string($value)) {
+            $value = array_map(
+                static fn (string $name): array => ['name' => $name, 'note' => ''],
+                self::materialNames($value),
+            );
+        }
         if (!is_array($value)) {
             return [['name' => ArtefactRules::PENDING, 'note' => '']];
         }
 
         $materials = [];
         foreach ($value as $row) {
+            if (is_string($row)) {
+                $row = ['name' => $row, 'note' => ''];
+            }
             if (!is_array($row)) {
                 continue;
             }
-            $name = self::text($row['name'] ?? '', 150);
-            if ($name === '') {
-                continue;
-            }
-            $materials[] = ['name' => $name, 'note' => self::text($row['note'] ?? '', 2000)];
-            if (count($materials) === 30) {
-                break;
+            $names = self::materialNames(is_string($row['name'] ?? null) ? $row['name'] : '');
+            $note = self::text($row['note'] ?? '', 2000);
+            foreach ($names as $index => $name) {
+                $name = self::text($name, 150);
+                if ($name === '') {
+                    continue;
+                }
+                $materials[] = ['name' => $name, 'note' => $index === 0 ? $note : ''];
+                if (count($materials) === 30) {
+                    break 2;
+                }
             }
         }
 
         return $materials === [] ? [['name' => ArtefactRules::PENDING, 'note' => '']] : $materials;
+    }
+
+    /** @return list<string> */
+    private static function materialNames(string $value): array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return [];
+        }
+
+        $parts = preg_split('/\s*(?:,|;|\/|\R|\s+e\s+|\s+and\s+)\s*/iu', $value);
+        if (!is_array($parts) || count($parts) < 2) {
+            return [$value];
+        }
+
+        $names = [];
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+            if (mb_strlen($part) > 60) {
+                return [$value];
+            }
+            $names[] = $part;
+        }
+
+        return count($names) >= 2 ? $names : [$value];
     }
 
     /** @return list<string> */

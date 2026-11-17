@@ -50,8 +50,15 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertStringContainsString('Veio de uma palmeira.', $body['input'][0]['text']);
         self::assertStringContainsString('poético', $body['system_instruction']);
         self::assertStringContainsString('Não invente procedência', $body['system_instruction']);
+        self::assertStringContainsString('espiritual', $body['system_instruction']);
+        self::assertStringContainsString('Três materiais ditos são três itens', $body['system_instruction']);
+        self::assertStringContainsString('Nunca substitua uma descrição por uma versão mais curta', $body['system_instruction']);
         self::assertStringNotContainsString('O nome é curto, não uma frase.', $body['system_instruction']);
+        self::assertSame(16384, $body['generation_config']['max_output_tokens']);
+        self::assertSame('low', $body['generation_config']['thinking_level']);
         self::assertStringContainsString('metáfora', $body['response_format']['schema']['properties']['title']['description']);
+        self::assertStringContainsString('espiritual', $body['response_format']['schema']['properties']['description']['description']);
+        self::assertSame(30, $body['response_format']['schema']['properties']['materials']['maxItems']);
         $schemaFields = array_keys($body['response_format']['schema']['properties']);
         self::assertNotContains('price', $schemaFields);
         self::assertNotContains('sale_price', $schemaFields);
@@ -59,6 +66,57 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame('Cocar de fibra', $profile->title);
         self::assertSame('P', $profile->size);
         self::assertSame([['name' => 'Fibra', 'note' => 'Clara e seca.']], $profile->materials);
+    }
+
+    public function testKeepsEverySpokenMaterialAndTheWholeStory(): void
+    {
+        $story = 'Ela contou que a peça nasceu de um sonho à beira do rio. '
+            .'A pedra guarda proteção, o cristal abre o caminho e o linho segura a intenção de cura. '
+            .'Nada disso deve ser resumido.';
+        $client = new MockHttpClient([$this->completed([
+            'title' => 'Verso da margem',
+            'description' => $story,
+            'dimensions' => '',
+            'materials' => 'palha, cristal e linho',
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito à mão.',
+            'size' => 'M',
+        ])]);
+
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', 'audio-bytes', 'audio/mp4', 'Palha, cristal e linho.')->profile;
+
+        self::assertSame($story, $profile->description);
+        self::assertSame(
+            [
+                ['name' => 'palha', 'note' => ''],
+                ['name' => 'cristal', 'note' => ''],
+                ['name' => 'linho', 'note' => ''],
+            ],
+            $profile->materials,
+        );
+    }
+
+    public function testSeparateMaterialRowsStaySeparate(): void
+    {
+        $client = new MockHttpClient([$this->completed([
+            'title' => 'Verso da margem',
+            'description' => 'A história permanece.',
+            'dimensions' => '',
+            'materials' => [
+                ['name' => 'Palha', 'note' => 'Trançada.'],
+                ['name' => 'Cristal', 'note' => 'Branco.'],
+                ['name' => 'Linho', 'note' => ''],
+            ],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito à mão.',
+            'size' => 'M',
+        ])]);
+
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
+
+        self::assertSame(['Palha', 'Cristal', 'Linho'], array_column($profile->materials, 'name'));
+        self::assertSame('Trançada.', $profile->materials[0]['note']);
+        self::assertSame('Branco.', $profile->materials[1]['note']);
     }
 
     public function testMissingKeyDoesNotCallTheApi(): void
@@ -200,6 +258,18 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame(180, mb_strlen($profile->title));
         self::assertSame('', $profile->description);
         self::assertSame([['name' => 'informação a documentar', 'note' => '']], $profile->materials);
+
+        $long = new MockHttpClient([$this->completed([
+            'title' => 'Verso',
+            'description' => str_repeat('á', 8001),
+            'dimensions' => '',
+            'materials' => [['name' => 'Palha', 'note' => '']],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito à mão.',
+            'size' => 'M',
+        ])]);
+        $kept = $this->generator($long, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
+        self::assertSame(8000, mb_strlen($kept->description));
         self::assertSame(['informação a documentar'], $profile->care);
         self::assertSame('informação a documentar', $profile->handmade);
         self::assertSame('', $profile->size);
