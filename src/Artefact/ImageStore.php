@@ -52,7 +52,11 @@ final class ImageStore
         $this->ensureDirectory($folderPath);
 
         $name = Identifier::uuid().'.'.$extension;
+        $full = $folderPath.'/'.$name;
         $file->move($folderPath, $name);
+        if ($extension === 'jpg') {
+            $this->normalizeJpegOrientation($full);
+        }
 
         return $folder.'/'.$name;
     }
@@ -172,5 +176,61 @@ final class ImageStore
         if (!mkdir($directory, 0775, true) && !is_dir($directory)) {
             throw new InvalidArtefact('Não foi possível enviar a foto. Tente novamente.');
         }
+    }
+
+    private function normalizeJpegOrientation(string $path): void
+    {
+        if (!function_exists('exif_read_data') || !function_exists('imagecreatefromjpeg') || !function_exists('imagerotate')) {
+            return;
+        }
+
+        $exif = @exif_read_data($path);
+        $orientation = is_array($exif) ? (int) ($exif['Orientation'] ?? 1) : 1;
+        if ($orientation < 2 || $orientation > 8) {
+            return;
+        }
+
+        $image = @imagecreatefromjpeg($path);
+        if ($image === false) {
+            return;
+        }
+
+        $oriented = $this->orientJpeg($image, $orientation);
+        imagejpeg($oriented, $path, 92);
+        imagedestroy($oriented);
+    }
+
+    private function orientJpeg(\GdImage $image, int $orientation): \GdImage
+    {
+        return match ($orientation) {
+            2 => $this->flipped($image, IMG_FLIP_HORIZONTAL),
+            3 => $this->turned($image, 180),
+            4 => $this->flipped($image, IMG_FLIP_VERTICAL),
+            5 => $this->flipped($this->turned($image, 90), IMG_FLIP_HORIZONTAL),
+            6 => $this->turned($image, -90),
+            7 => $this->flipped($this->turned($image, -90), IMG_FLIP_HORIZONTAL),
+            8 => $this->turned($image, 90),
+            default => $image,
+        };
+    }
+
+    private function turned(\GdImage $image, float $angle): \GdImage
+    {
+        $result = imagerotate($image, $angle, 0);
+        if (!$result instanceof \GdImage) {
+            return $image;
+        }
+        if ($result !== $image) {
+            imagedestroy($image);
+        }
+
+        return $result;
+    }
+
+    private function flipped(\GdImage $image, int $mode): \GdImage
+    {
+        imageflip($image, $mode);
+
+        return $image;
     }
 }

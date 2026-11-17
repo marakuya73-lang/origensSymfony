@@ -174,6 +174,8 @@ final class AdminToolsTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('button[data-profile-assist-target="generate"]');
         self::assertSelectorTextContains('button[data-profile-assist-target="generate"]', 'Gerar perfil');
+        self::assertSelectorExists('button[data-profile-assist-target="generate"]:not([disabled])');
+        self::assertSelectorExists('[data-record-duration]');
         self::assertSelectorExists('details.assist-fold');
         self::assertSelectorTextContains('summary.assist-summary', 'Preencher com IA');
         self::assertSelectorTextContains('[data-record-label]', 'Gravar');

@@ -97,6 +97,7 @@
                             <input class="sr-only" type="file" accept="audio/*,.webm,.mp3,.m4a,.wav,.ogg,.aac,.flac,.mp4" data-action="change->profile-assist#chooseFile">
                         </label>
                         <div class="record-ready" hidden>
+                            <span class="record-duration" data-record-duration hidden></span>
                             <audio controls></audio>
                             <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio" title="Remover áudio">{{ icons.svg('trash') }}</button>
                         </div>
@@ -118,6 +119,7 @@
                                     <span data-record-label>Gravar</span>
                                 </button>
                                 <div class="record-ready" hidden>
+                                    <span class="record-duration" data-record-duration hidden></span>
                                     <audio controls></audio>
                                     <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio da resposta" title="Remover áudio">{{ icons.svg('trash') }}</button>
                                 </div>

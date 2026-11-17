@@ -111,6 +111,7 @@ a { color: inherit; }
     height: auto;
     aspect-ratio: 4 / 5;
     object-fit: cover;
+    image-orientation: from-image;
 }
 .figure-caption {
     display: flex;
@@ -368,6 +369,7 @@ fieldset:disabled { opacity: 0.6; }
 .assist-body .hint { margin-top: 0; }
 .recorder { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
 .record-ready { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.record-duration { font-variant-numeric: tabular-nums; font-size: 0.8rem; color: var(--muted); }
 .record-btn {
     display: inline-flex;
     align-items: center;
