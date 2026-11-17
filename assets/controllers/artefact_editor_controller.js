@@ -9,6 +9,13 @@ export default class extends Controller {
 
     connect() {
         this.savedSnapshot = this.snapshot();
+        this.reviewing = false;
+        this.element.addEventListener('input', (event) => {
+            if (!this.reviewing || !event.isTrusted || !(event.target instanceof Element) || event.target.closest('[data-assist]')) {
+                return;
+            }
+            this.reviewing = false;
+        });
     }
 
     guard(event) {
@@ -22,10 +29,70 @@ export default class extends Controller {
         if (next instanceof Element && this.element.contains(next) && next.matches('[data-submit], a.btn')) {
             return;
         }
+        if (event?.target instanceof Element && event.target.closest('[data-assist]')) {
+            return;
+        }
+        if (next instanceof Element && next.closest('[data-assist]')) {
+            return;
+        }
         if (event?.target instanceof HTMLInputElement && event.target.type === 'file') {
             return;
         }
         this.persist();
+    }
+
+    applyProfile(profile) {
+        this.reviewing = true;
+        this.write('title', profile.title);
+        this.write('description', profile.description);
+        this.write('dimensions', profile.dimensions);
+        this.write('handmade', profile.handmade);
+        this.write('care', Array.isArray(profile.care) ? profile.care.filter((line) => typeof line === 'string').join('\n') : '');
+        this.replaceMaterials(Array.isArray(profile.materials) ? profile.materials : []);
+        this.applySize(profile.size);
+        if (this.hasErrorTarget) {
+            this.errorTarget.hidden = true;
+        }
+    }
+
+    write(name, value) {
+        const field = this.element.querySelector(`[name="${name}"]`);
+        if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+            field.value = typeof value === 'string' ? value : '';
+        }
+    }
+
+    replaceMaterials(materials) {
+        const rows = materials
+            .filter((row) => row && typeof row.name === 'string' && row.name.trim() !== '')
+            .slice(0, 30);
+        if (!rows.length) {
+            return;
+        }
+        this.materialsTarget.replaceChildren();
+        rows.forEach(() => this.addMaterial());
+        this.materialRows().forEach((row, index) => {
+            const name = row.querySelector('[data-name]');
+            const note = row.querySelector('[data-note]');
+            if (name) {
+                name.value = rows[index].name;
+            }
+            if (note) {
+                note.value = typeof rows[index].note === 'string' ? rows[index].note : '';
+            }
+        });
+        this.refreshMaterials();
+    }
+
+    applySize(size) {
+        if (size !== 'P' && size !== 'M' && size !== 'G') {
+            return;
+        }
+        const input = this.element.querySelector(`input[name="size"][value="${size}"]`);
+        if (!(input instanceof HTMLInputElement) || input.closest('fieldset')?.disabled) {
+            return;
+        }
+        input.checked = true;
     }
 
     async upload() {
@@ -175,6 +242,9 @@ export default class extends Controller {
     }
 
     persist() {
+        if (this.reviewing) {
+            return;
+        }
         this.wanted = true;
         if (this.saving) {
             return;

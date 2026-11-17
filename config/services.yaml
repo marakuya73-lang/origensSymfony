@@ -3,6 +3,8 @@
 parameters:
     env(ARTEFACT_UPLOAD_DIR): '%kernel.project_dir%/public/uploads/artefacts'
     artefact_upload_dir: '%env(resolve:ARTEFACT_UPLOAD_DIR)%'
+    env(GEMINI_API_KEY): ''
+    env(GEMINI_MODEL): 'gemini-3.8-flash'
 
 services:
     _defaults:

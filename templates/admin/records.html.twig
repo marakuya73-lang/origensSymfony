@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block body %}
-    <main class="admin-page">
+    <main class="admin-page" data-controller="archive-export">
         <header class="admin-bar">
             <div>
                 <p class="admin-mark">ORIGENS</p>
@@ -25,8 +25,21 @@
 
         <div class="admin-heading">
             <h1>Artefactos</h1>
-            <a class="btn" href="{{ path('admin_artefact_new') }}">{{ icons.svg('plus') }} Novo artefacto</a>
+            <div class="heading-actions">
+                {% if rows is not empty %}
+                    <form id="artefact-export" class="export-actions" method="post" action="{{ path('admin_artefact_export') }}" data-turbo="false">
+                        <input type="hidden" name="_token" value="{{ csrf_token('export') }}">
+                        <button type="submit" class="btn btn-outline" name="format" value="csv" data-archive-export-target="submit">Exportar CSV</button>
+                        <button type="submit" class="btn btn-outline" name="format" value="xlsx" data-archive-export-target="submit">Exportar XLSX</button>
+                    </form>
+                {% endif %}
+                <a class="btn" href="{{ path('admin_artefact_new') }}">{{ icons.svg('plus') }} Novo artefacto</a>
+            </div>
         </div>
+
+        {% if exportError %}
+            <p class="form-error" role="alert">{{ exportError }}</p>
+        {% endif %}
 
         {% if rows is empty %}
             <div class="empty-archive">
@@ -35,7 +48,12 @@
             </div>
         {% else %}
             <div>
+                <label class="select-all">
+                    <input type="checkbox" data-archive-export-target="all" data-action="change->archive-export#toggleAll">
+                    Selecionar todas
+                </label>
                 <div class="record-head label">
+                    <span></span>
                     <span>Peça</span>
                     <span>Referência</span>
                     <span>Nome</span>
@@ -47,6 +65,10 @@
                         {% if row.path %}
                             <a class="row-open" href="{{ row.path }}" aria-label="Abrir {{ row.code }}"></a>
                         {% endif %}
+                        <label class="row-check">
+                            <input type="checkbox" name="ids[]" value="{{ row.id }}" form="artefact-export" data-action="change->archive-export#sync">
+                            <span class="sr-only">Selecionar {{ row.code }}</span>
+                        </label>
                         {% if row.image %}
                             <img src="{{ asset(row.image) }}" alt="{{ row.title }}">
                         {% else %}

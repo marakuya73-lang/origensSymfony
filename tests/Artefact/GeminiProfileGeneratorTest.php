@@ -1,0 +1,158 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Artefact;
+
+use App\Artefact\GeminiProfileGenerator;
+use App\Artefact\ProfileGenerationFailed;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpClient\Exception\TransportException;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
+
+final class GeminiProfileGeneratorTest extends TestCase
+{
+    public function testSendsThePhotoAudioAndNotesAndIgnoresTheModelThought(): void
+    {
+        $captured = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
+            $captured = ['method' => $method, 'url' => $url, 'options' => $options];
+
+            return $this->completed([
+                'title' => 'Cocar de fibra',
+                'description' => 'Uma peça pequena, com fibras claras.',
+                'dimensions' => 'aproximadamente 18 cm',
+                'materials' => [['name' => 'Fibra', 'note' => 'Clara e seca.']],
+                'care' => ['Guardar em local seco.'],
+                'handmade' => 'O entrelaçado pede tempo.',
+                'size' => 'P',
+            ], '```json
+{"title":"pensamento"}
+```');
+        });
+
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', 'audio-bytes', 'audio/webm', 'Veio de uma palmeira.');
+
+        self::assertSame('POST', $captured['method']);
+        self::assertSame('https://generativelanguage.googleapis.com/v1beta/interactions', $captured['url']);
+        self::assertSame(0, $captured['options']['max_redirects']);
+        self::assertStringNotContainsString('test-key', $captured['url']);
+        $headers = $captured['options']['normalized_headers']['x-goog-api-key'] ?? [];
+        self::assertSame(['x-goog-api-key: test-key'], $headers);
+        $body = json_decode((string) $captured['options']['body'], true);
+        self::assertIsArray($body);
+        self::assertSame('gemini-3.8-flash', $body['model']);
+        self::assertSame('image/jpeg', $body['input'][1]['mime_type']);
+        self::assertSame(base64_encode('jpeg-bytes'), $body['input'][1]['data']);
+        self::assertSame('audio/webm', $body['input'][2]['mime_type']);
+        self::assertSame(base64_encode('audio-bytes'), $body['input'][2]['data']);
+        self::assertStringContainsString('Veio de uma palmeira.', $body['input'][0]['text']);
+        self::assertSame('Cocar de fibra', $profile->title);
+        self::assertSame('P', $profile->size);
+        self::assertSame([['name' => 'Fibra', 'note' => 'Clara e seca.']], $profile->materials);
+    }
+
+    public function testMissingKeyDoesNotCallTheApi(): void
+    {
+        $client = new MockHttpClient(function (): never {
+            throw new \RuntimeException('The API key must stay on the server and the call must not happen.');
+        });
+
+        $this->expectException(ProfileGenerationFailed::class);
+        $this->expectExceptionMessage(ProfileGenerationFailed::UNCONFIGURED);
+        $this->generator($client, '  ')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+    }
+
+    public function testRateLimitIsAClearMessage(): void
+    {
+        $client = new MockHttpClient([
+            new MockResponse('{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota"}}', ['http_code' => 429]),
+        ]);
+
+        try {
+            $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+            self::fail('A rate limit must fail the generation.');
+        } catch (ProfileGenerationFailed $exception) {
+            self::assertSame(429, $exception->status());
+            self::assertSame(ProfileGenerationFailed::LIMITED, $exception->getMessage());
+        }
+    }
+
+    public function testRejectedKeyAndTransportErrorsStayInPortuguese(): void
+    {
+        $rejected = new MockHttpClient([
+            new MockResponse('{"error":{"status":"UNAUTHENTICATED"}}', ['http_code' => 401]),
+        ]);
+        try {
+            $this->generator($rejected, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+            self::fail('A rejected key must fail the generation.');
+        } catch (ProfileGenerationFailed $exception) {
+            self::assertSame(ProfileGenerationFailed::REJECTED_KEY, $exception->getMessage());
+        }
+
+        $offline = new MockHttpClient(function (): never {
+            throw new TransportException('timed out');
+        });
+        try {
+            $this->generator($offline, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+            self::fail('A transport error must fail the generation.');
+        } catch (ProfileGenerationFailed $exception) {
+            self::assertSame(ProfileGenerationFailed::UNAVAILABLE, $exception->getMessage());
+            self::assertStringNotContainsString('timed out', $exception->getMessage());
+        }
+    }
+
+    public function testTrimsTheProfileToTheArtefactLimits(): void
+    {
+        $client = new MockHttpClient([$this->completed([
+            'title' => str_repeat('á', 200),
+            'description' => '',
+            'dimensions' => '',
+            'materials' => [],
+            'care' => ['  '],
+            'handmade' => '',
+            'size' => 'enorme',
+        ])]);
+
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+
+        self::assertSame(180, mb_strlen($profile->title));
+        self::assertSame('', $profile->description);
+        self::assertSame([['name' => 'informação a documentar', 'note' => '']], $profile->materials);
+        self::assertSame(['informação a documentar'], $profile->care);
+        self::assertSame('informação a documentar', $profile->handmade);
+        self::assertSame('', $profile->size);
+    }
+
+    public function testInvalidModelIsRejectedBeforeTheCall(): void
+    {
+        $client = new MockHttpClient(function (): never {
+            throw new \RuntimeException('Invalid model names must not be sent.');
+        });
+
+        $this->expectException(ProfileGenerationFailed::class);
+        $this->expectExceptionMessage(ProfileGenerationFailed::INVALID_MODEL);
+        $this->generator($client, 'test-key', '../gemini')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+    }
+
+    private function generator(MockHttpClient $client, string $key, string $model = 'gemini-3.8-flash'): GeminiProfileGenerator
+    {
+        return new GeminiProfileGenerator($client, $key, $model);
+    }
+
+    /** @param array<string, mixed> $profile */
+    private function completed(array $profile, string $thought = 'pensando'): MockResponse
+    {
+        return new MockResponse((string) json_encode([
+            'status' => 'completed',
+            'steps' => [[
+                'type' => 'model_output',
+                'content' => [
+                    ['type' => 'text', 'thought' => true, 'text' => $thought],
+                    ['type' => 'text', 'text' => json_encode($profile, JSON_THROW_ON_ERROR)],
+                ],
+            ]],
+        ], JSON_THROW_ON_ERROR), ['http_code' => 200]);
+    }
+}
