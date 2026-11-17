@@ -212,6 +212,24 @@ final class AdminToolsTest extends WebTestCase
         self::assertStringContainsString('/p/'.$first->getPublicToken(), $csv);
         self::assertStringNotContainsString('Banco', $csv);
         self::assertStringContainsString('text/csv', (string) $client->getResponse()->headers->get('content-type'));
+        $singleLines = preg_split("/\r\n|\n/", trim($csv)) ?: [];
+        $singleTotal = (string) end($singleLines);
+        self::assertStringStartsWith('Total;', $singleTotal);
+        self::assertStringContainsString('1.250,50', $singleTotal);
+        self::assertStringNotContainsString('sem preço', $singleTotal);
+
+        $client->request('POST', '/admin/records/export', [
+            '_token' => $token,
+            'format' => 'csv',
+            'ids' => [$first->getId(), $second->getId()],
+        ]);
+        self::assertResponseIsSuccessful();
+        $both = (string) $client->getResponse()->getContent();
+        $bothLines = preg_split("/\r\n|\n/", trim($both)) ?: [];
+        $bothTotal = (string) end($bothLines);
+        self::assertStringStartsWith('Total;', $bothTotal);
+        self::assertStringContainsString('1 sem preço', $bothTotal);
+        self::assertStringContainsString('1.250,50', $bothTotal);
 
         $client->request('POST', '/admin/records/export', [
             '_token' => $token,
@@ -226,12 +244,17 @@ final class AdminToolsTest extends WebTestCase
         $zip = new \ZipArchive();
         self::assertTrue($zip->open($path));
         $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+        $styles = $zip->getFromName('xl/styles.xml');
         $zip->close();
         unlink($path);
         self::assertIsString($sheet);
+        self::assertIsString($styles);
         self::assertStringContainsString('Cerâmica de coração', $sheet);
-        self::assertStringContainsString('1.250,50', $sheet);
+        self::assertStringContainsString('1250.50', $sheet);
         self::assertStringContainsString('Banco', $sheet);
+        self::assertStringContainsString('<f>SUM(C2:C3)</f>', $sheet);
+        self::assertStringContainsString('1 sem preço', $sheet);
+        self::assertStringContainsString('R$', $styles);
         foreach (SellerTable::headers() as $header) {
             self::assertStringContainsString($header, $sheet);
         }

@@ -130,7 +130,7 @@ final class AdminController extends AbstractController
         $day = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
         try {
             if ($format === 'xlsx') {
-                $body = $this->files->xlsx($table['headers'], $table['rows']);
+                $body = $this->files->xlsx($table['headers'], $table['rows'], $table['priceColumn']);
                 $type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
                 $filename = 'origens-artefactos-'.$day.'.xlsx';
             } else {

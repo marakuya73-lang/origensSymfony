@@ -12,20 +12,30 @@ final class SellerTable
     {
     }
 
+    public const PRICE_COLUMN = 2;
+
     /**
      * @param list<Artefact> $artefacts
      *
-     * @return array{headers: list<string>, rows: list<list<string>>}
+     * @return array{headers: list<string>, rows: list<list<string>>, priceColumn: int}
      */
     public function build(array $artefacts, string $origin): array
     {
         $rows = [];
+        $totalCents = 0;
+        $missingPrices = 0;
         foreach ($artefacts as $artefact) {
+            $cents = $artefact->getSalePriceCents();
+            if ($cents === null) {
+                ++$missingPrices;
+            } else {
+                $totalCents += $cents;
+            }
             $token = $artefact->getPublicToken();
             $rows[] = [
                 $artefact->getCode(),
                 $artefact->getTitle(),
-                SalePrice::excel($artefact->getSalePriceCents()),
+                SalePrice::excel($cents),
                 $artefact->getDescription(),
                 $artefact->getSize(),
                 (string) $artefact->getCategory(),
@@ -39,7 +49,9 @@ final class SellerTable
             ];
         }
 
-        return ['headers' => self::headers(), 'rows' => $rows];
+        $rows[] = $this->totalRow($totalCents, $missingPrices);
+
+        return ['headers' => self::headers(), 'rows' => $rows, 'priceColumn' => self::PRICE_COLUMN];
     }
 
     /** @return list<string> */
@@ -70,6 +82,21 @@ final class SellerTable
         }
 
         return implode("\n", $lines);
+    }
+
+    /** @return list<string> */
+    private function totalRow(int $totalCents, int $missingPrices): array
+    {
+        $row = array_fill(0, count(self::headers()), '');
+        $row[0] = 'Total';
+        $row[1] = match ($missingPrices) {
+            0 => '',
+            1 => '1 sem preço',
+            default => $missingPrices.' sem preço',
+        };
+        $row[self::PRICE_COLUMN] = SalePrice::excel($totalCents);
+
+        return $row;
     }
 
     private function imageUrl(Artefact $artefact, string $origin): string

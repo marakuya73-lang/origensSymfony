@@ -25,4 +25,4 @@ Se a chave faltar, a cota da API acabar ou o serviço falhar, o formulário most
 
 ## Exportar para a planilha
 
-Na lista de artefactos, marque as peças e use **Exportar CSV** ou **Exportar XLSX**. O CSV é UTF-8 com BOM e separador `;`, para o Excel em português abrir os acentos. A planilha traz referência, nome, descrição, tamanho, categoria, dimensão, materiais, cuidados, feito à mão, data do registro, endereço público e a URL da foto principal.
+Na lista de artefactos, marque as peças e use **Exportar CSV** ou **Exportar XLSX**. O CSV é UTF-8 com BOM e separador `;`, para o Excel em português abrir os acentos. A planilha traz referência, nome, preço de venda, descrição, tamanho, categoria, dimensão, materiais, cuidados, feito à mão, data do registro, endereço público e a URL da foto principal. A última linha, **Total**, soma os preços. Uma peça sem preço entra como zero, e a linha diz quantas estão sem preço. No XLSX essa soma é a fórmula `SUM` com formato de real.
