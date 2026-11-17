@@ -14,12 +14,16 @@ final class GeminiProfileGenerator
 
     private const DEFAULT_MODEL = 'gemini-3.8-flash';
 
+    private const DEFAULT_FALLBACK = 'gemini-3.5-flash-lite';
+
     public function __construct(
         private HttpClientInterface $httpClient,
         #[Autowire(env: 'GEMINI_API_KEY')]
         private string $apiKey,
         #[Autowire(env: 'GEMINI_MODEL')]
         private string $model,
+        #[Autowire(env: 'GEMINI_FALLBACK_MODEL')]
+        private string $fallbackModel = self::DEFAULT_FALLBACK,
     ) {
     }
 
@@ -34,13 +38,8 @@ final class GeminiProfileGenerator
             throw new ProfileGenerationFailed(ProfileGenerationFailed::UNUSABLE, 422);
         }
 
-        $model = trim($this->model);
-        if ($model === '') {
-            $model = self::DEFAULT_MODEL;
-        }
-        if (1 !== preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/', $model)) {
-            throw new ProfileGenerationFailed(ProfileGenerationFailed::INVALID_MODEL, 500);
-        }
+        $model = $this->modelName($this->model, self::DEFAULT_MODEL);
+        $fallback = $this->modelName($this->fallbackModel, self::DEFAULT_FALLBACK);
 
         $notes = trim($notes);
         if (mb_strlen($notes) > 4000) {
@@ -55,6 +54,20 @@ final class GeminiProfileGenerator
             $input[] = ['type' => 'audio', 'data' => base64_encode($audio), 'mime_type' => $audioMime];
         }
 
+        try {
+            return $this->complete($apiKey, $model, $input);
+        } catch (ProfileGenerationFailed $exception) {
+            if (!$this->retryable($exception) || $fallback === $model) {
+                throw $exception;
+            }
+        }
+
+        return $this->complete($apiKey, $fallback, $input);
+    }
+
+    /** @param list<array<string, mixed>> $input */
+    private function complete(string $apiKey, string $model, array $input): GeneratedProfile
+    {
         try {
             $response = $this->httpClient->request('POST', self::ENDPOINT, [
                 'headers' => [
@@ -86,8 +99,8 @@ final class GeminiProfileGenerator
         }
 
         $payload = json_decode($body, true);
-        if ($status === 429 || (is_array($payload) && ($payload['error']['status'] ?? '') === 'RESOURCE_EXHAUSTED')) {
-            throw new ProfileGenerationFailed(ProfileGenerationFailed::LIMITED, 429);
+        if ($this->overloaded($status, $payload)) {
+            throw $this->overloadFailure($status, $payload);
         }
         if (in_array($status, [401, 403], true) || (is_array($payload) && in_array($payload['error']['status'] ?? '', ['UNAUTHENTICATED', 'PERMISSION_DENIED'], true))) {
             throw new ProfileGenerationFailed(ProfileGenerationFailed::REJECTED_KEY, 502);
@@ -102,6 +115,42 @@ final class GeminiProfileGenerator
         }
 
         return GeneratedProfile::fromModel($this->decode($this->outputText($payload)));
+    }
+
+    private function modelName(string $configured, string $default): string
+    {
+        $model = trim($configured);
+        if ($model === '') {
+            $model = $default;
+        }
+        if (1 !== preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/', $model)) {
+            throw new ProfileGenerationFailed(ProfileGenerationFailed::INVALID_MODEL, 500);
+        }
+
+        return $model;
+    }
+
+    private function retryable(ProfileGenerationFailed $exception): bool
+    {
+        return in_array($exception->status(), [429, 503], true);
+    }
+
+    private function overloaded(int $status, mixed $payload): bool
+    {
+        $errorStatus = is_array($payload) ? (string) ($payload['error']['status'] ?? '') : '';
+
+        return in_array($status, [429, 503], true) || in_array($errorStatus, ['UNAVAILABLE', 'RESOURCE_EXHAUSTED'], true);
+    }
+
+    private function overloadFailure(int $status, mixed $payload): ProfileGenerationFailed
+    {
+        $errorStatus = is_array($payload) ? (string) ($payload['error']['status'] ?? '') : '';
+        $limited = $status === 429 || $errorStatus === 'RESOURCE_EXHAUSTED';
+
+        return new ProfileGenerationFailed(
+            $limited ? ProfileGenerationFailed::LIMITED : ProfileGenerationFailed::UNAVAILABLE,
+            $limited ? 429 : 503,
+        );
     }
 
     private function instruction(): string

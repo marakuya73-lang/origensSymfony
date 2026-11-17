@@ -64,19 +64,90 @@ final class GeminiProfileGeneratorTest extends TestCase
         $this->generator($client, '  ')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
     }
 
-    public function testRateLimitIsAClearMessage(): void
+    public function testUnavailablePrimaryRetriesTheFallbackModelOnce(): void
     {
-        $client = new MockHttpClient([
-            new MockResponse('{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota"}}', ['http_code' => 429]),
-        ]);
+        $models = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$models): MockResponse {
+            $body = json_decode((string) $options['body'], true);
+            self::assertIsArray($body);
+            $models[] = $body['model'];
+            if (count($models) === 1) {
+                return new MockResponse('{"error":{"code":503,"status":"UNAVAILABLE","message":"model is currently experiencing high demand"}}', ['http_code' => 503]);
+            }
+
+            return $this->completed([
+                'title' => 'Cocar de fibra',
+                'description' => 'Uma peça pequena.',
+                'dimensions' => '',
+                'materials' => [['name' => 'Fibra', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+
+        self::assertSame(['gemini-3.8-flash', 'gemini-3.5-flash-lite'], $models);
+        self::assertSame(2, $client->getRequestsCount());
+        self::assertSame('Cocar de fibra', $profile->title);
+    }
+
+    public function testRateLimitRetriesOnceThenReportsTheLimit(): void
+    {
+        $models = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$models): MockResponse {
+            $body = json_decode((string) $options['body'], true);
+            self::assertIsArray($body);
+            $models[] = $body['model'];
+
+            return new MockResponse('{"error":{"status":"RESOURCE_EXHAUSTED","message":"quota"}}', ['http_code' => 429]);
+        });
 
         try {
             $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
-            self::fail('A rate limit must fail the generation.');
+            self::fail('A rate limit on both models must fail the generation.');
         } catch (ProfileGenerationFailed $exception) {
             self::assertSame(429, $exception->status());
             self::assertSame(ProfileGenerationFailed::LIMITED, $exception->getMessage());
         }
+
+        self::assertSame(['gemini-3.8-flash', 'gemini-3.5-flash-lite'], $models);
+    }
+
+    public function testSecondUnavailableStillFailsWithoutAThirdCall(): void
+    {
+        $client = new MockHttpClient([
+            new MockResponse('{"error":{"status":"UNAVAILABLE","message":"high demand"}}', ['http_code' => 503]),
+            new MockResponse('{"error":{"status":"UNAVAILABLE","message":"high demand"}}', ['http_code' => 503]),
+            new MockResponse('{"error":{"status":"UNAVAILABLE"}}', ['http_code' => 503]),
+        ]);
+
+        try {
+            $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+            self::fail('Two unavailable models must fail the generation.');
+        } catch (ProfileGenerationFailed $exception) {
+            self::assertSame(503, $exception->status());
+            self::assertSame(ProfileGenerationFailed::UNAVAILABLE, $exception->getMessage());
+        }
+
+        self::assertSame(2, $client->getRequestsCount());
+    }
+
+    public function testTheSameModelIsNotCalledTwice(): void
+    {
+        $client = new MockHttpClient([
+            new MockResponse('{"error":{"status":"UNAVAILABLE"}}', ['http_code' => 503]),
+        ]);
+
+        try {
+            $this->generator($client, 'test-key', 'gemini-3.8-flash', 'gemini-3.8-flash')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+            self::fail('An unavailable model must fail when there is no distinct fallback.');
+        } catch (ProfileGenerationFailed $exception) {
+            self::assertSame(ProfileGenerationFailed::UNAVAILABLE, $exception->getMessage());
+        }
+
+        self::assertSame(1, $client->getRequestsCount());
     }
 
     public function testRejectedKeyAndTransportErrorsStayInPortuguese(): void
@@ -90,6 +161,7 @@ final class GeminiProfileGeneratorTest extends TestCase
         } catch (ProfileGenerationFailed $exception) {
             self::assertSame(ProfileGenerationFailed::REJECTED_KEY, $exception->getMessage());
         }
+        self::assertSame(1, $rejected->getRequestsCount());
 
         $offline = new MockHttpClient(function (): never {
             throw new TransportException('timed out');
@@ -136,9 +208,9 @@ final class GeminiProfileGeneratorTest extends TestCase
         $this->generator($client, 'test-key', '../gemini')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
     }
 
-    private function generator(MockHttpClient $client, string $key, string $model = 'gemini-3.8-flash'): GeminiProfileGenerator
+    private function generator(MockHttpClient $client, string $key, string $model = 'gemini-3.8-flash', string $fallback = 'gemini-3.5-flash-lite'): GeminiProfileGenerator
     {
-        return new GeminiProfileGenerator($client, $key, $model);
+        return new GeminiProfileGenerator($client, $key, $model, $fallback);
     }
 
     /** @param array<string, mixed> $profile */

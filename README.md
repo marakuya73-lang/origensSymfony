@@ -12,9 +12,10 @@ No formulário de criar ou editar, a foto principal, um áudio opcional e notas 
 ```
 GEMINI_API_KEY=sua-chave
 GEMINI_MODEL=gemini-3.8-flash
+GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 ```
 
-`GEMINI_API_KEY` fica vazio em `.env` de propósito. Não grave uma chave real em arquivo versionado. `GEMINI_MODEL` é opcional; o padrão é `gemini-3.8-flash`, um modelo Flash multimodal atual. A chamada sai do servidor Symfony, então a chave não chega ao navegador.
+`GEMINI_API_KEY` fica vazio em `.env` de propósito. Não grave uma chave real em arquivo versionado. `GEMINI_MODEL` é opcional; o padrão é `gemini-3.8-flash`, um modelo Flash multimodal do plano gratuito. Se ele responder 503 UNAVAILABLE ou 429, o servidor tenta uma vez `GEMINI_FALLBACK_MODEL` (padrão `gemini-3.5-flash-lite`, também gratuito) antes de mostrar o erro. A chamada sai do servidor Symfony, então a chave não chega ao navegador.
 
 No formulário, adicione pelo menos uma foto. Grave uma descrição curta no navegador (o microfone pede HTTPS) ou envie um arquivo WebM, MP3, M4A, WAV ou OGG de até 10 MB. As notas são livres e também opcionais. **Gerar perfil com IA** preenche nome, descrição, dimensão, materiais, cuidados, feito à mão e, numa peça nova, o tamanho. Revise e só então salve.
 
