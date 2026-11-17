@@ -4,13 +4,15 @@ const MAX_AUDIO = 10 * 1024 * 1024;
 const MAX_RECORDING = 180000;
 
 export default class extends Controller {
-    static targets = ['notes', 'record', 'stop', 'file', 'clear', 'preview', 'audioState', 'generate', 'error', 'status'];
+    static targets = ['notes', 'record', 'stop', 'file', 'clear', 'preview', 'audioState', 'generate', 'error', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume'];
     static values = { url: String, token: String };
 
     connect() {
         this.clip = null;
         this.chunks = [];
         this.previewUrl = '';
+        this.audioFresh = false;
+        this.history = [];
         if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
             this.recordTarget.hidden = true;
         }
@@ -79,6 +81,7 @@ export default class extends Controller {
             return;
         }
         this.clip = blob;
+        this.audioFresh = true;
         this.fileTarget.value = '';
         this.showClip(blob, 'Gravação pronta para enviar.');
     }
@@ -94,11 +97,13 @@ export default class extends Controller {
             return;
         }
         this.clip = null;
+        this.audioFresh = true;
         this.showClip(file, file.name);
     }
 
     clearAudio() {
         this.clip = null;
+        this.audioFresh = false;
         this.fileTarget.value = '';
         this.previewTarget.hidden = true;
         this.previewTarget.removeAttribute('src');
@@ -109,8 +114,36 @@ export default class extends Controller {
 
     async generate(event) {
         event.preventDefault();
+        this.history = [];
+        await this.ask({ first: true });
+    }
+
+    async reply(event) {
+        event.preventDefault();
+        const answer = this.replyTarget.value.trim();
+        if (!answer && !this.audioFor(false)) {
+            this.showError('Escreva uma resposta ou envie um áudio.');
+            return;
+        }
+        await this.ask({ first: false, answer });
+    }
+
+    endChat() {
+        this.composerTarget.hidden = true;
+        this.resumeTarget.hidden = false;
+        this.setStatus('Conversa encerrada. Revise os campos e salve quando quiser.');
+    }
+
+    resume() {
+        this.composerTarget.hidden = false;
+        this.resumeTarget.hidden = true;
+        this.doneTarget.hidden = true;
+        this.replyTarget.focus();
+    }
+
+    async ask({ first, answer = '' }) {
         if (this.recorder?.state === 'recording') {
-            this.showError('Pare a gravação antes de gerar o perfil.');
+            this.showError('Pare a gravação antes de continuar.');
             return;
         }
 
@@ -120,19 +153,30 @@ export default class extends Controller {
             return;
         }
 
+        const editor = this.application.getControllerForElementAndIdentifier(this.element, 'artefact-editor');
+        if (!editor || typeof editor.applyProfile !== 'function') {
+            this.showError('Não foi possível preencher o formulário. Recarregue a página.');
+            return;
+        }
+
+        const audio = this.audioFor(first);
         const body = new FormData();
         body.append('_token', this.tokenValue);
         body.append('image', image);
-        body.append('notes', this.notesTarget.value);
-        const audio = this.clip || this.fileTarget.files?.[0];
+        body.append('notes', first ? this.notesTarget.value : '');
+        body.append('answer', first ? '' : answer);
+        body.append('history', JSON.stringify(this.history));
+        body.append('form', JSON.stringify(typeof editor.currentForm === 'function' ? editor.currentForm() : {}));
+        body.append('touched', JSON.stringify(typeof editor.touchedFields === 'function' ? editor.touchedFields() : []));
         if (audio) {
             const name = audio instanceof File && audio.name ? audio.name : this.filename(audio);
             body.append('audio', audio, name);
         }
 
         this.generateTarget.disabled = true;
+        this.sendTarget.disabled = true;
         this.clearMessage();
-        this.setStatus('Gerando perfil…');
+        this.setStatus(first ? 'Gerando perfil…' : 'Atualizando perfil…');
         try {
             const response = await fetch(this.urlValue, {
                 method: 'POST',
@@ -150,18 +194,58 @@ export default class extends Controller {
                 this.showError(payload.error || 'Não foi possível gerar o perfil agora. Tente novamente em instantes.');
                 return;
             }
-            const editor = this.application.getControllerForElementAndIdentifier(this.element, 'artefact-editor');
-            if (!editor || typeof editor.applyProfile !== 'function') {
-                this.showError('Não foi possível preencher o formulário. Recarregue a página.');
-                return;
-            }
             editor.applyProfile(payload.profile);
-            this.setStatus('Perfil sugerido. Revise os campos. Nada foi salvo.');
+            this.remember(first, answer, Boolean(audio), payload);
+            this.clearAudio();
+            if (this.hasReplyTarget) {
+                this.replyTarget.value = '';
+            }
+            this.showChat(payload);
+            this.setStatus(payload.complete ? 'Perfil completo. Nada foi salvo.' : 'Perfil atualizado. Nada foi salvo.');
         } catch {
             this.showError('Não foi possível gerar o perfil agora. Tente novamente em instantes.');
         } finally {
             this.generateTarget.disabled = false;
+            this.sendTarget.disabled = false;
         }
+    }
+
+    audioFor(first) {
+        const audio = this.clip || this.fileTarget.files?.[0] || null;
+        if (!audio) {
+            return null;
+        }
+
+        return first || this.audioFresh ? audio : null;
+    }
+
+    remember(first, answer, hadAudio, payload) {
+        let userText = first ? (this.notesTarget.value.trim() || 'Sem notas escritas.') : (answer || 'Resposta em áudio.');
+        if (hadAudio) {
+            userText = first || !answer ? `${userText}\n(enviou um áudio)` : `${answer}\n(também enviou um áudio)`;
+        }
+        const questions = Array.isArray(payload.questions) ? payload.questions.filter((question) => typeof question === 'string' && question.trim() !== '') : [];
+        const assistantText = payload.complete ? 'O perfil está completo.' : (questions.join('\n') || 'Sem perguntas novas.');
+        this.history.push({ role: 'user', text: userText }, { role: 'assistant', text: assistantText });
+        if (this.history.length > 16) {
+            this.history = this.history.slice(-16);
+        }
+    }
+
+    showChat(payload) {
+        this.threadTarget.replaceChildren();
+        this.history.forEach((turn) => {
+            const bubble = document.createElement('p');
+            bubble.className = `chat-bubble ${turn.role === 'assistant' ? 'assistant' : 'user'}`;
+            bubble.textContent = turn.text;
+            this.threadTarget.appendChild(bubble);
+        });
+        this.chatTarget.hidden = false;
+        const complete = payload.complete === true;
+        this.composerTarget.hidden = complete;
+        this.doneTarget.hidden = !complete;
+        this.resumeTarget.hidden = !complete;
+        this.threadTarget.scrollTop = this.threadTarget.scrollHeight;
     }
 
     showClip(blob, label) {

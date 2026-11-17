@@ -4,7 +4,7 @@ Arquivo de peças feitas à mão. Cada artefacto publicado fica em `/p/{token}`.
 
 ## Gerar o perfil com IA
 
-No formulário de criar ou editar, a foto principal, um áudio opcional e notas opcionais podem sugerir o texto da peça. A sugestão só preenche o formulário. A peça não é gravada nesse passo: o botão de salvar grava, e o salvamento automático só volta a agir depois que você editar um campo.
+No formulário de criar ou editar, a foto principal, um áudio opcional e notas opcionais começam o perfil. A sugestão preenche o que der para saber e, se faltar algo, faz perguntas curtas em português. Depois disso, nada é gravado sozinho, nem na conversa nem ao editar um campo: o botão de salvar é que grava.
 
 1. Crie uma chave no plano gratuito do [Google AI Studio](https://aistudio.google.com/apikey).
 2. Coloque a chave em `.env.local` (esse arquivo não entra no git):
@@ -17,7 +17,7 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 
 `GEMINI_API_KEY` fica vazio em `.env` de propósito. Não grave uma chave real em arquivo versionado. `GEMINI_MODEL` é opcional; o padrão é `gemini-3.8-flash`, um modelo Flash multimodal do plano gratuito. Se ele responder 503 UNAVAILABLE ou 429, o servidor tenta uma vez `GEMINI_FALLBACK_MODEL` (padrão `gemini-3.5-flash-lite`, também gratuito) antes de mostrar o erro. A chamada sai do servidor Symfony, então a chave não chega ao navegador.
 
-No formulário, adicione pelo menos uma foto. Grave uma descrição curta no navegador (o microfone pede HTTPS) ou envie um arquivo WebM, MP3, M4A, WAV ou OGG de até 10 MB. As notas são livres e também opcionais. **Gerar perfil com IA** preenche nome, descrição, dimensão, materiais, cuidados, feito à mão e, numa peça nova, o tamanho. Revise e só então salve.
+No formulário, adicione pelo menos uma foto. Grave uma descrição curta no navegador (o microfone pede HTTPS) ou envie um arquivo WebM, MP3, M4A, WAV ou OGG de até 10 MB. As notas são livres e também opcionais. **Gerar perfil com IA** preenche nome, descrição, dimensão, materiais, cuidados, feito à mão e, numa peça nova, o tamanho. As perguntas aparecem num painel de conversa no próprio formulário. Responda por texto ou com outro áudio. Cada resposta segue com o histórico (guardado no navegador, não no servidor) e com os valores atuais do formulário. A IA atualiza o que ainda falta e faz a próxima pergunta, até dizer que o perfil está completo ou até você encerrar. Um campo que você editou à mão não é reescrito, a menos que a resposta peça essa mudança. Revise e só então salve.
 
 A categoria (1, 2 ou 3) continua manual: ela só distingue a referência da peça e não tem um nome no arquivo. Não há campo de preço.
 

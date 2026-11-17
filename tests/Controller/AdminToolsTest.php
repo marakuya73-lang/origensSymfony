@@ -7,6 +7,7 @@ namespace App\Tests\Controller;
 use App\Artefact\ArtefactData;
 use App\Artefact\ArtefactRegistrar;
 use App\Artefact\GeminiProfileGenerator;
+use App\Artefact\ProfileExchange;
 use App\Artefact\ProfileGenerationFailed;
 use App\Artefact\SellerTable;
 use App\Repository\ArtefactRepository;
@@ -63,7 +64,64 @@ final class AdminToolsTest extends WebTestCase
         self::assertTrue($payload['ok']);
         self::assertSame('Abano de palha', $payload['profile']['title']);
         self::assertSame('Palha', $payload['profile']['materials'][0]['name']);
+        self::assertFalse($payload['complete']);
         self::assertStringNotContainsString('test-key', (string) $client->getResponse()->getContent());
+
+        $repository = static::getContainer()->get(ArtefactRepository::class);
+        self::assertInstanceOf(ArtefactRepository::class, $repository);
+        self::assertSame([], $repository->recent());
+    }
+
+    public function testConversationKeepsAHandEditedNameAndDoesNotSave(): void
+    {
+        $this->key('test-key');
+        $client = $this->ownerClient();
+        $client->disableReboot();
+        $client->getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator(new MockHttpClient([
+            $this->gemini([
+                'title' => 'Nome da IA',
+                'description' => 'Peça leve.',
+                'dimensions' => 'aproximadamente 18 cm',
+                'materials' => [['name' => 'Palha', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'P',
+                'questions' => ['Qual o cuidado com a água?'],
+                'complete' => false,
+                'changed' => [],
+            ]),
+        ]), 'test-key', 'gemini-3.8-flash'));
+
+        $client->request('POST', '/admin/records/images', ['_token' => $this->token($client, '/admin/records/new')], ['image' => $this->jpeg()]);
+        $uploaded = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($uploaded);
+        $token = $this->token($client, '/admin/records/new');
+
+        $client->request('POST', '/admin/records/profile', [
+            '_token' => $token,
+            'image' => $uploaded['path'],
+            'form' => json_encode(['title' => 'Nome escrito à mão', 'description' => 'Já escrevi isto.'], JSON_THROW_ON_ERROR),
+            'touched' => json_encode(['title', 'description'], JSON_THROW_ON_ERROR),
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertSame('Nome escrito à mão', $payload['profile']['title']);
+        self::assertSame('Já escrevi isto.', $payload['profile']['description']);
+        self::assertSame('aproximadamente 18 cm', $payload['profile']['dimensions']);
+        self::assertSame(['Qual o cuidado com a água?'], $payload['questions']);
+        self::assertFalse($payload['complete']);
+
+        $client->request('POST', '/admin/records/profile', [
+            '_token' => $token,
+            'image' => $uploaded['path'],
+            'history' => json_encode([['role' => 'assistant', 'text' => 'Qual o cuidado com a água?']], JSON_THROW_ON_ERROR),
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        $denied = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($denied);
+        self::assertSame(ProfileExchange::ANSWER_REQUIRED, $denied['error']);
 
         $repository = static::getContainer()->get(ArtefactRepository::class);
         self::assertInstanceOf(ArtefactRepository::class, $repository);
@@ -117,6 +175,8 @@ final class AdminToolsTest extends WebTestCase
         self::assertSelectorExists('button[data-profile-assist-target="generate"]');
         self::assertSelectorTextContains('button[data-profile-assist-target="generate"]', 'Gerar perfil com IA');
         self::assertSelectorExists('input[type="file"][accept*="audio"]');
+        self::assertSelectorExists('[data-profile-assist-target="thread"]');
+        self::assertSelectorTextContains('button[data-profile-assist-target="send"]', 'Enviar resposta');
         self::assertStringNotContainsString('test-key', (string) $client->getResponse()->getContent());
         self::assertStringNotContainsString('GEMINI_API_KEY', (string) $client->getResponse()->getContent());
     }

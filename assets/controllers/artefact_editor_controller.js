@@ -10,12 +10,52 @@ export default class extends Controller {
     connect() {
         this.savedSnapshot = this.snapshot();
         this.reviewing = false;
-        this.element.addEventListener('input', (event) => {
-            if (!this.reviewing || !event.isTrusted || !(event.target instanceof Element) || event.target.closest('[data-assist]')) {
-                return;
-            }
-            this.reviewing = false;
-        });
+        this.touched = new Set();
+        this.element.addEventListener('input', (event) => this.noteTouch(event));
+        this.element.addEventListener('change', (event) => this.noteTouch(event));
+    }
+
+    noteTouch(event) {
+        if (!event.isTrusted || !(event.target instanceof Element) || event.target.closest('[data-assist]')) {
+            return;
+        }
+        const field = this.fieldName(event.target);
+        if (field) {
+            this.touched.add(field);
+        }
+    }
+
+    fieldName(target) {
+        if (target.closest('[data-material]')) {
+            return 'materials';
+        }
+        if (['title', 'description', 'dimensions', 'care', 'handmade', 'size'].includes(target.name)) {
+            return target.name;
+        }
+
+        return null;
+    }
+
+    touchedFields() {
+        return [...this.touched];
+    }
+
+    currentForm() {
+        const value = (name) => this.element.querySelector(`[name="${name}"]`)?.value ?? '';
+        const size = this.element.querySelector('input[name="size"]:checked');
+
+        return {
+            title: value('title'),
+            description: value('description'),
+            dimensions: value('dimensions'),
+            handmade: value('handmade'),
+            care: value('care'),
+            size: size instanceof HTMLInputElement ? size.value : '',
+            materials: this.materialRows().map((row) => ({
+                name: row.querySelector('[data-name]')?.value ?? '',
+                note: row.querySelector('[data-note]')?.value ?? '',
+            })),
+        };
     }
 
     guard(event) {

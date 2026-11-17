@@ -32,7 +32,7 @@ final class GeminiProfileGeneratorTest extends TestCase
 ```');
         });
 
-        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', 'audio-bytes', 'audio/webm', 'Veio de uma palmeira.');
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', 'audio-bytes', 'audio/webm', 'Veio de uma palmeira.')->profile;
 
         self::assertSame('POST', $captured['method']);
         self::assertSame('https://generativelanguage.googleapis.com/v1beta/interactions', $captured['url']);
@@ -86,7 +86,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             ]);
         });
 
-        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
 
         self::assertSame(['gemini-3.8-flash', 'gemini-3.5-flash-lite'], $models);
         self::assertSame(2, $client->getRequestsCount());
@@ -187,7 +187,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             'size' => 'enorme',
         ])]);
 
-        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
 
         self::assertSame(180, mb_strlen($profile->title));
         self::assertSame('', $profile->description);
@@ -195,6 +195,70 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame(['informação a documentar'], $profile->care);
         self::assertSame('informação a documentar', $profile->handmade);
         self::assertSame('', $profile->size);
+    }
+
+    public function testFollowUpCarriesTheConversationAndHandEditedFields(): void
+    {
+        $captured = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
+            $captured = json_decode((string) $options['body'], true);
+
+            return $this->completed([
+                'title' => 'Nome novo',
+                'description' => 'Peça leve.',
+                'dimensions' => 'aproximadamente 18 cm',
+                'materials' => [['name' => 'Palha', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+                'questions' => [],
+                'complete' => true,
+                'changed' => ['dimensions'],
+            ]);
+        });
+
+        $turn = $this->generator($client, 'test-key')->suggest(
+            'jpeg-bytes',
+            'image/jpeg',
+            null,
+            null,
+            '',
+            'A dimensão é cerca de 18 cm.',
+            [['role' => 'assistant', 'text' => 'Qual a dimensão?']],
+            ['title' => 'Nome escrito à mão'],
+            ['title'],
+        );
+
+        self::assertIsArray($captured);
+        self::assertStringContainsString('Conversa até aqui:', $captured['input'][0]['text']);
+        self::assertStringContainsString('Qual a dimensão?', $captured['input'][0]['text']);
+        self::assertStringContainsString('A dimensão é cerca de 18 cm.', $captured['input'][0]['text']);
+        self::assertStringContainsString('Campos editados à mão: title.', $captured['input'][0]['text']);
+        self::assertTrue($turn->complete);
+        self::assertSame([], $turn->questions);
+        self::assertSame(['dimensions'], $turn->changed);
+    }
+
+    public function testOpenQuestionsStayShortAndUnknownChangesAreDropped(): void
+    {
+        $client = new MockHttpClient([$this->completed([
+            'title' => 'Cocar',
+            'description' => '',
+            'dimensions' => '',
+            'materials' => [['name' => 'Fibra', 'note' => '']],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito à mão.',
+            'size' => 'P',
+            'questions' => ['Qual a dimensão?', '  ', 'O material é fibra ou palha?', 'E a origem?'],
+            'complete' => false,
+            'changed' => ['dimensions', 'preço', 'dimensão'],
+        ])]);
+
+        $turn = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+
+        self::assertFalse($turn->complete);
+        self::assertSame(['Qual a dimensão?', 'O material é fibra ou palha?', 'E a origem?'], $turn->questions);
+        self::assertSame(['dimensions'], $turn->changed);
     }
 
     public function testInvalidModelIsRejectedBeforeTheCall(): void

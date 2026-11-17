@@ -11,6 +11,7 @@ use App\Artefact\AudioClip;
 use App\Artefact\GeminiProfileGenerator;
 use App\Artefact\ImageStore;
 use App\Artefact\InvalidArtefact;
+use App\Artefact\ProfileExchange;
 use App\Artefact\ProfileGenerationFailed;
 use App\Artefact\SellerTable;
 use App\Artefact\SubmissionParser;
@@ -55,9 +56,13 @@ final class AdminController extends AbstractController
         try {
             $path = $request->request->getString('image');
             $notes = $request->request->getString('notes');
+            $answer = $request->request->getString('answer');
             $image = $this->images->read($path);
             $mime = $this->images->mimeType($path);
             $audio = AudioClip::read($request->files->get('audio'));
+            $history = ProfileExchange::history($request->request->getString('history'));
+            $form = ProfileExchange::form($request->request->getString('form'));
+            $touched = ProfileExchange::touched($request->request->getString('touched'));
         } catch (InvalidArtefact $exception) {
             return $this->json(['ok' => false, 'error' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
         } catch (BadRequestException) {
@@ -67,6 +72,12 @@ final class AdminController extends AbstractController
         if (mb_strlen($notes) > 4000) {
             return $this->json(['ok' => false, 'error' => 'As notas podem ter até 4000 caracteres.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+        if (mb_strlen($answer) > 2000) {
+            return $this->json(['ok' => false, 'error' => 'A resposta pode ter até 2000 caracteres.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($history !== [] && trim($answer) === '' && $audio === null) {
+            return $this->json(['ok' => false, 'error' => ProfileExchange::ANSWER_REQUIRED], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
 
         $audioBytes = null;
         $audioMime = null;
@@ -75,12 +86,20 @@ final class AdminController extends AbstractController
         }
 
         try {
-            $profile = $this->profiles->suggest($image, $mime, $audioBytes, $audioMime, $notes);
+            $turn = $this->profiles->suggest($image, $mime, $audioBytes, $audioMime, $notes, $answer, $history, $form, $touched);
         } catch (ProfileGenerationFailed $exception) {
             return $this->json(['ok' => false, 'error' => $exception->getMessage()], $exception->status());
         }
 
-        return $this->json(['ok' => true, 'profile' => $profile->toArray()]);
+        $profile = ProfileExchange::merge($turn->profile, $form, $touched, $turn->changed);
+
+        return $this->json([
+            'ok' => true,
+            'profile' => $profile->toArray(),
+            'questions' => $turn->questions,
+            'complete' => $turn->complete,
+            'changed' => $turn->changed,
+        ]);
     }
 
     #[Route('/admin/records/export', name: 'admin_artefact_export', methods: ['POST'])]
