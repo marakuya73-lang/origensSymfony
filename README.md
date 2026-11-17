@@ -17,11 +17,38 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 
 `GEMINI_API_KEY` fica vazio em `.env` de propósito. Não grave uma chave real em arquivo versionado. `GEMINI_MODEL` é opcional; o padrão é `gemini-3.8-flash`, um modelo Flash multimodal do plano gratuito. Se ele responder 503 UNAVAILABLE ou 429, o servidor tenta uma vez `GEMINI_FALLBACK_MODEL` (padrão `gemini-3.5-flash-lite`, também gratuito) antes de mostrar o erro. A chamada sai do servidor Symfony, então a chave não chega ao navegador.
 
-No formulário, a **foto principal** fica no topo: no telemóvel dá para usar a câmera ou a biblioteca, e a foto é gravada já na orientação certa. Abaixo, abra **✨ Preencher com IA**. Grave com o botão redondo (fica vermelho, com o tempo; a tela tenta permanecer acesa). Toque de novo para parar, ouça a duração e use **✨ Gerar perfil**, que manda a foto, o áudio — se houver, e só se a gravação não estiver vazia — e as notas juntos. Sem foto, um aviso no topo explica e oferece tentar de novo. O nome sai poético. A descrição guarda a história, a origem narrada e o sentido espiritual ou simbólico que a pessoa contar, em quantos parágrafos forem precisos, sem resumir. Cada material dito ou visível entra na sua linha. Dimensão e cuidados ficam factuais. A IA não inventa origem nem preço, e numa conversa seguinte só enriquece a descrição. As perguntas aparecem na conversa, com um único **Enviar resposta**. Nada é salvo até o botão de salvar.
+No formulário, a **foto principal** fica no topo: no telemóvel dá para usar a câmera ou a biblioteca, e a foto é gravada já na orientação certa. Abaixo, abra **✨ Preencher com IA**. Grave com o botão redondo (fica vermelho, com o tempo; a tela tenta permanecer acesa). Toque de novo para parar, ouça a duração e use **✨ Gerar perfil**, que manda a foto, o áudio — se houver, e só se a gravação não estiver vazia — e as notas juntos. Sem foto, um aviso no topo explica e oferece tentar de novo. O nome sai poético. A descrição guarda a história, a origem narrada e o sentido espiritual ou simbólico que a pessoa contar, em quantos parágrafos forem precisos, sem resumir. Cada material dito ou visível entra na sua linha, e a nota desse material completa o que ela disse com o sentido tradicional daquele material. Dimensão e cuidados ficam factuais. A IA não inventa origem nem preço, não contradiz a fala dela e numa conversa seguinte só enriquece a descrição. O que vem do acervo é apresentado como tradição, não como fato. As perguntas aparecem na conversa, com um único **Enviar resposta**. Nada é salvo até o botão de salvar.
 
 A categoria (1, 2 ou 3) continua manual: ela só distingue a referência da peça e não tem um nome no arquivo. O preço de venda é opcional, em reais, e fica só no arquivo reservado e na planilha (formato `1.250,00` para o Excel em português). A página pública não mostra o preço, e a IA não preenche esse campo.
 
 Se a chave faltar, a cota da API acabar ou o serviço falhar, o formulário mostra o motivo em português e continua editável.
+
+## Acervo simbólico
+
+Os sentidos tradicionais e o glossário da oficina ficam em `data/symbolism.yaml`, versionado com o código. A geração lê esse arquivo. Para ampliar o acervo, edite o YAML; não é preciso alterar PHP.
+
+Cada lista (`stones`, `feathers`, `materials`, `colours`, `elements`, `chakras`, `signs`, `planets`, `intentions`) tem entradas assim:
+
+```yaml
+- id: ametista
+  names: [ametista]
+  brief: "Uma frase, usada quando o nome só aparece no áudio ou na foto."
+  text: "O sentido tradicional, usado quando o nome já está nas notas, no formulário ou na conversa."
+  related: [chakra-terceiro-olho]
+```
+
+`related` puxa só a frase (`brief`) da outra entrada. O pedido manda o texto inteiro das entradas reconhecidas no que ela já escreveu, e uma frase de cada pedra, pena, material, cor, elemento e intenção restante, para o modelo reconhecer o que ouve e o que vê sem receber o acervo inteiro. Chakras, signos e planetas só entram quando o nome aparece ou quando uma entrada reconhecida os liga.
+
+O glossário corrige a grafia do texto devolvido e ensina a grafia certa:
+
+```yaml
+glossary:
+  - term: abanilho
+    mishearings: [abanilio, habanilho]
+    text: "Leque ritual de penas, menor que o abano."
+```
+
+`abanilho` e `abano` são as grafias da oficina. `ábano`, a madeira, não é trocado.
 
 ## Exportar para a planilha
 

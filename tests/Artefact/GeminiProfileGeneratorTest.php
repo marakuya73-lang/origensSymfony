@@ -48,6 +48,8 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame('audio/webm', $body['input'][2]['mime_type']);
         self::assertSame(base64_encode('audio-bytes'), $body['input'][2]['data']);
         self::assertStringContainsString('Veio de uma palmeira.', $body['input'][0]['text']);
+        self::assertStringContainsString('abanilho', $body['input'][0]['text']);
+        self::assertStringNotContainsString('recolhimento do espírito', $body['input'][0]['text']);
         self::assertStringContainsString('poético', $body['system_instruction']);
         self::assertStringContainsString('Não invente procedência', $body['system_instruction']);
         self::assertStringContainsString('espiritual', $body['system_instruction']);
@@ -117,6 +119,32 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame(['Palha', 'Cristal', 'Linho'], array_column($profile->materials, 'name'));
         self::assertSame('Trançada.', $profile->materials[0]['note']);
         self::assertSame('Branco.', $profile->materials[1]['note']);
+    }
+
+    public function testNamedStoneTravelsInFullAndMisspellingsAreRepaired(): void
+    {
+        $captured = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
+            $captured = json_decode((string) $options['body'], true);
+
+            return $this->completed([
+                'title' => 'Abanilio',
+                'description' => 'O habano e a ametista.',
+                'dimensions' => '',
+                'materials' => [['name' => 'Ametista', 'note' => 'Serenidade.']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, 'Uma ametista.')->profile;
+
+        self::assertIsArray($captured);
+        self::assertStringContainsString('recolhimento do espírito', $captured['input'][0]['text']);
+        self::assertStringNotContainsString('O citrino, quartzo que a tradição vê dourado', $captured['input'][0]['text']);
+        self::assertSame('Abanilho', $profile->title);
+        self::assertSame('O abano e a ametista.', $profile->description);
     }
 
     public function testMissingKeyDoesNotCallTheApi(): void
