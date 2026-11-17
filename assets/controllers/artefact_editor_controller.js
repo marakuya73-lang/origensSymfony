@@ -173,7 +173,7 @@ export default class extends Controller {
         } finally {
             this.uploading -= 1;
             if (!this.uploading) {
-                this.uploadLabelTarget.textContent = 'Adicionar fotos';
+                this.uploadLabelTarget.textContent = 'Adicionar outra foto';
                 this.persist();
             }
         }

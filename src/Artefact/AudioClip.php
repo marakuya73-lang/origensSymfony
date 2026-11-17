@@ -22,6 +22,7 @@ final class AudioClip
         'audio/mpeg' => 'audio/mpeg',
         'audio/mp3' => 'audio/mp3',
         'audio/mp4' => 'audio/m4a',
+        'video/mp4' => 'audio/m4a',
         'audio/m4a' => 'audio/m4a',
         'audio/x-m4a' => 'audio/m4a',
         'audio/aac' => 'audio/aac',

@@ -173,14 +173,24 @@ final class AdminToolsTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('button[data-profile-assist-target="generate"]');
-        self::assertSelectorTextContains('button[data-profile-assist-target="generate"]', 'Gerar perfil com IA');
+        self::assertSelectorTextContains('button[data-profile-assist-target="generate"]', 'Gerar perfil');
         self::assertSelectorExists('details.assist-fold');
         self::assertSelectorTextContains('summary.assist-summary', 'Preencher com IA');
         self::assertSelectorTextContains('[data-record-label]', 'Gravar');
-        self::assertSelectorExists('[data-profile-assist-target="thread"]');
-        self::assertSelectorTextContains('button[data-profile-assist-target="send"]', 'Enviar');
+        self::assertSelectorExists('.chat[hidden]');
+        self::assertSelectorExists('.ai-toast[hidden]');
+        self::assertSelectorTextContains('button[data-profile-assist-target="send"]', 'Enviar resposta');
+        self::assertSelectorTextContains('.photo-lead legend', 'Foto principal');
         $html = (string) $client->getResponse()->getContent();
-        self::assertLessThan(strpos($html, 'name="title"'), strpos($html, 'Preencher com IA'));
+        $photo = strpos($html, 'Foto principal');
+        $assist = strpos($html, 'Preencher com IA');
+        $title = strpos($html, 'name="title"');
+        self::assertNotFalse($photo);
+        self::assertNotFalse($assist);
+        self::assertNotFalse($title);
+        self::assertLessThan($assist, $photo);
+        self::assertLessThan($title, $assist);
+        self::assertSame(1, substr_count($html, 'data-profile-assist-target="send"'));
         self::assertStringNotContainsString('<details class="assist-fold" open', $html);
         self::assertStringNotContainsString('test-key', (string) $client->getResponse()->getContent());
         self::assertStringNotContainsString('GEMINI_API_KEY', (string) $client->getResponse()->getContent());

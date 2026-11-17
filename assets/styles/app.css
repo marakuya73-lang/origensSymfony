@@ -320,7 +320,37 @@ fieldset:disabled { opacity: 0.6; }
 .select-all { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.75rem; font-size: 0.875rem; }
 .row-price-desktop { display: none; }
 .row-price-mobile { margin-top: 0.35rem; }
-.assist-fold { border: 1px solid var(--rule); }
+[hidden] { display: none !important; }
+.photo-lead { border-top: 1px solid var(--rule); padding-top: 1.1rem; }
+.photo-capture {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-top: 0.85rem;
+    padding: 0.85rem 0.9rem;
+    border: 1px dashed var(--rule);
+    cursor: pointer;
+}
+.photo-capture-title { display: block; font-family: var(--font-display); font-size: 1.35rem; line-height: 1.1; }
+.photo-lead .photo-grid:not(:empty) { margin-bottom: 0.25rem; }
+.photo-lead .photo:first-child img { aspect-ratio: 1 / 1; max-height: 16rem; }
+.ai-toast {
+    position: fixed;
+    z-index: 40;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(26rem, calc(100% - 2rem));
+    display: grid;
+    gap: 0.75rem;
+    padding: 1.1rem 1.15rem 1.2rem;
+    background: var(--background);
+    color: var(--foreground);
+    border: 1px solid var(--rule);
+    box-shadow: 0 16px 40px oklch(0.24 0.012 110 / 18%);
+}
+.ai-toast-kicker { font-family: var(--font-display); font-size: 1.45rem; line-height: 1; }
+.assist-fold { border: 1px solid var(--rule); background: oklch(0.975 0.01 85); }
 .assist-summary {
     display: flex;
     align-items: center;
@@ -336,14 +366,34 @@ fieldset:disabled { opacity: 0.6; }
 .assist-lead { font-size: 0.875rem; line-height: 1.5; }
 .assist-body audio { width: min(100%, 16rem); }
 .assist-body .hint { margin-top: 0; }
-.recorder { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.recorder { display: flex; flex-wrap: wrap; align-items: center; gap: 0.65rem; }
 .record-ready { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
-.record-ready[hidden] { display: none; }
+.record-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 3rem;
+    padding: 0.35rem 0.95rem 0.35rem 0.35rem;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: inherit;
+}
+.record-mic {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    border-radius: 50%;
+    background: var(--foreground);
+    color: var(--background);
+}
+.record-mic .icon { width: 1rem; height: 1rem; }
 .record-dot {
     width: 0.55rem;
     height: 0.55rem;
     border-radius: 50%;
-    background: currentColor;
+    background: white;
     display: none;
 }
 .record-btn.is-recording {
@@ -351,18 +401,32 @@ fieldset:disabled { opacity: 0.6; }
     border-color: oklch(0.5 0.16 25);
     color: white;
 }
+.record-btn.is-recording .record-mic { background: white; color: oklch(0.5 0.16 25); }
 .record-btn.is-recording .record-dot { display: inline-block; animation: record-pulse 1s ease-in-out infinite; }
-.record-btn.has-clip {
-    background: transparent;
-    color: var(--olive);
-    border-color: var(--olive);
+.record-btn.has-clip { border-color: var(--olive); color: var(--olive); }
+.record-btn.has-clip .record-mic { background: var(--olive); }
+.generate-btn { min-width: 11rem; }
+.generate-btn.is-busy { opacity: 0.8; }
+.generate-btn.is-busy [data-generate-label]::before {
+    content: "";
+    display: inline-block;
+    width: 0.8rem;
+    height: 0.8rem;
+    margin-right: 0.45rem;
+    border: 1.5px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    vertical-align: -0.1rem;
+    animation: record-spin 0.7s linear infinite;
 }
 @keyframes record-pulse {
     0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
+    50% { opacity: 0.3; }
 }
+@keyframes record-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-    .record-btn.is-recording .record-dot { animation: none; }
+    .record-btn.is-recording .record-dot,
+    .generate-btn.is-busy [data-generate-label]::before { animation: none; }
 }
 .chat { display: grid; gap: 0.75rem; border-top: 1px solid var(--rule); padding-top: 0.9rem; }
 .chat-thread { display: grid; gap: 0.45rem; max-height: 16rem; overflow: auto; }
