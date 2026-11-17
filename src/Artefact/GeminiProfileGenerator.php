@@ -174,6 +174,7 @@ final class GeminiProfileGenerator
             'Escreva todos os textos em português do Brasil, com registro calmo e concreto, sem tom de anúncio.',
             'Use só o que a fotografia mostra e o que a pessoa diz no áudio ou nas notas.',
             'Não invente procedência, povo, autor, preço ou data.',
+            'O preço de venda não faz parte deste perfil e não deve ser preenchido nem alterado.',
             'Se um campo importante estiver vazio ou incerto, faça no máximo duas perguntas curtas, em português do Brasil.',
             'Quando não houver lacuna importante, marque complete como true e deixe questions vazio.',
             'Não altere um campo editado à mão, salvo se a última resposta pedir essa mudança. Nesse caso, inclua o campo em changed.',

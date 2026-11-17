@@ -34,6 +34,7 @@ final class SubmissionParser
             $materials = $this->materials($request);
             $size = $current?->getSize() ?? $request->request->getString('size');
             $category = $current?->getCategory() ?? $request->request->getInt('category');
+            $salePriceCents = SalePrice::cents($request->request->getString('sale_price'));
             $data = ArtefactData::fromSubmitted(
                 $request->request->getString('title'),
                 $size,
@@ -45,6 +46,7 @@ final class SubmissionParser
                 $request->request->getString('handmade'),
                 $paths,
                 $request->request->getString('record_date'),
+                $salePriceCents,
             );
 
             return new Submission(
@@ -61,6 +63,7 @@ final class SubmissionParser
                     $data->images,
                     $this->images,
                     $current,
+                    SalePrice::input($data->salePriceCents),
                 ),
                 $data,
                 null,
@@ -162,6 +165,7 @@ final class SubmissionParser
             $paths,
             $this->images,
             $current,
+            $request->request->getString('sale_price'),
         );
     }
 

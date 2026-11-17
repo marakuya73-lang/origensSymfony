@@ -186,13 +186,14 @@ final class AdminToolsTest extends WebTestCase
         $client = $this->ownerClient();
         $registrar = static::getContainer()->get(ArtefactRegistrar::class);
         self::assertInstanceOf(ArtefactRegistrar::class, $registrar);
-        $first = $registrar->create($this->data('Cerâmica de coração', 'Uma vasilha pequena.'));
+        $first = $registrar->create($this->data('Cerâmica de coração', 'Uma vasilha pequena.', 125050));
         $second = $registrar->create($this->data('Banco', 'Peça de madeira.'));
 
         $crawler = $client->request('GET', '/admin/records');
         self::assertSelectorExists('button[name="format"][value="csv"]');
         self::assertSelectorExists('button[name="format"][value="xlsx"]');
         self::assertSelectorExists('input[name="ids[]"][value="'.$first->getId().'"]');
+        self::assertStringContainsString('R$ 1.250,50', (string) $client->getResponse()->getContent());
         $token = $crawler->filter('input[name="_token"]')->attr('value');
         self::assertIsString($token);
 
@@ -205,6 +206,7 @@ final class AdminToolsTest extends WebTestCase
         $csv = (string) $client->getResponse()->getContent();
         self::assertStringStartsWith("\xEF\xBB\xBF", $csv);
         self::assertStringContainsString('Cerâmica de coração', $csv);
+        self::assertStringContainsString('1.250,50', $csv);
         self::assertStringContainsString('Uma vasilha pequena.', $csv);
         self::assertStringContainsString('/uploads/artefacts/'.self::IMAGE, $csv);
         self::assertStringContainsString('/p/'.$first->getPublicToken(), $csv);
@@ -228,6 +230,7 @@ final class AdminToolsTest extends WebTestCase
         unlink($path);
         self::assertIsString($sheet);
         self::assertStringContainsString('Cerâmica de coração', $sheet);
+        self::assertStringContainsString('1.250,50', $sheet);
         self::assertStringContainsString('Banco', $sheet);
         foreach (SellerTable::headers() as $header) {
             self::assertStringContainsString($header, $sheet);
@@ -286,7 +289,7 @@ final class AdminToolsTest extends WebTestCase
         ], JSON_THROW_ON_ERROR));
     }
 
-    private function data(string $title, string $description): ArtefactData
+    private function data(string $title, string $description, ?int $salePriceCents = null): ArtefactData
     {
         return ArtefactData::fromSubmitted(
             $title,
@@ -299,6 +302,7 @@ final class AdminToolsTest extends WebTestCase
             'Feito à mão com calma.',
             [self::IMAGE],
             '2026-10-18',
+            $salePriceCents,
         );
     }
 

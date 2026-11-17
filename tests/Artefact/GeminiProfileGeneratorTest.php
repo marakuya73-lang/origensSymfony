@@ -48,6 +48,10 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame('audio/webm', $body['input'][2]['mime_type']);
         self::assertSame(base64_encode('audio-bytes'), $body['input'][2]['data']);
         self::assertStringContainsString('Veio de uma palmeira.', $body['input'][0]['text']);
+        $schemaFields = array_keys($body['response_format']['schema']['properties']);
+        self::assertNotContains('price', $schemaFields);
+        self::assertNotContains('sale_price', $schemaFields);
+        self::assertNotContains('salePriceCents', $schemaFields);
         self::assertSame('Cocar de fibra', $profile->title);
         self::assertSame('P', $profile->size);
         self::assertSame([['name' => 'Fibra', 'note' => 'Clara e seca.']], $profile->materials);

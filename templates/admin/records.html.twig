@@ -57,6 +57,7 @@
                     <span>Peça</span>
                     <span>Referência</span>
                     <span>Nome</span>
+                    <span>Preço</span>
                     <span>Criação</span>
                     <span></span>
                 </div>
@@ -78,8 +79,12 @@
                             <p class="code">{{ row.code }}</p>
                             <p class="row-title-mobile">{{ row.title }}</p>
                             <p class="quiet row-date-mobile">{{ row.createdOn }}</p>
+                            {% if row.price %}
+                                <p class="quiet row-price-mobile">{{ row.price }}</p>
+                            {% endif %}
                         </div>
                         <p class="row-title-desktop">{{ row.title }}</p>
+                        <p class="row-price-desktop">{{ row.price }}</p>
                         <time class="quiet row-date-desktop">{{ row.createdOn }}</time>
                         <div class="row-actions">
                             {% if row.url %}

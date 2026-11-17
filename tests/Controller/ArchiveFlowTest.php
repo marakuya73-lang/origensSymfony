@@ -147,6 +147,57 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertSelectorTextContains('[role="alert"]', 'Não foi possível entrar');
     }
 
+    public function testPublicPageDoesNotContainTheSalePrice(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => 'Cocar',
+            'size' => 'M',
+            'category' => '1',
+            'description' => 'Uma peça de teste.',
+            'dimensions' => '20 cm',
+            'materials' => [['name' => 'Pedra', 'note' => 'Labradorita informada.']],
+            'care' => 'Guardar seco.',
+            'handmade' => 'Feito à mão com calma.',
+            'record_date' => '2026-10-18',
+            'sale_price' => 'R$ 987,65',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+
+        self::assertResponseRedirects('/admin/records/saved');
+        $client->followRedirect();
+        $path = parse_url(trim($client->getCrawler()->filter('.saved-url')->text()), PHP_URL_PATH);
+        self::assertIsString($path);
+
+        $client->request('GET', $path);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('text/html', (string) $client->getResponse()->headers->get('content-type'));
+        $html = (string) $client->getResponse()->getContent();
+        $lower = mb_strtolower($html);
+        self::assertStringContainsString('Cocar', $html);
+        self::assertStringNotContainsString('987,65', $html);
+        self::assertStringNotContainsString('987.65', $html);
+        self::assertStringNotContainsString('98765', $html);
+        self::assertStringNotContainsString('R$', $html);
+        self::assertStringNotContainsString('preço', $lower);
+        self::assertStringNotContainsString('venda', $lower);
+        self::assertStringNotContainsString('sale_price', $lower);
+        self::assertStringNotContainsString('salepricecents', $lower);
+
+        $client->request('GET', '/admin/records');
+        self::assertStringContainsString('R$ 987,65', (string) $client->getResponse()->getContent());
+        $edit = $client->getCrawler()->filter('a[aria-label="Editar M-CAT1-001"]')->attr('href');
+        self::assertIsString($edit);
+        $client->request('GET', $edit);
+        self::assertSame('987,65', $client->getCrawler()->filter('input[name="sale_price"]')->attr('value'));
+    }
+
     private function browser(): KernelBrowser
     {
         $client = static::createClient();

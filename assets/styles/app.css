@@ -318,7 +318,8 @@ fieldset:disabled { opacity: 0.6; }
 .hint { margin-top: 0.5rem; font-size: 0.75rem; color: var(--muted); }
 .heading-actions, .export-actions, .assist-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .select-all { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.75rem; font-size: 0.875rem; }
-.row-check { position: relative; z-index: 1; display: flex; align-items: center; }
+.row-price-desktop { display: none; }
+.row-price-mobile { margin-top: 0.35rem; }
 .assist { display: grid; gap: 0.9rem; border: 1px solid var(--rule); padding: 1rem 1rem 1.1rem; }
 .assist-lead { font-size: 0.875rem; line-height: 1.5; }
 .assist audio { width: min(100%, 24rem); }
@@ -361,12 +362,12 @@ fieldset:disabled { opacity: 0.6; }
     .admin-heading { margin-top: 4rem; }
     .admin-heading h1 { font-size: 3.75rem; }
     .record-head, .record-row {
-        grid-template-columns: auto 5rem 1fr 1.4fr 8rem 8rem;
+        grid-template-columns: auto 5rem 1fr 1.4fr 7.5rem 8rem 8rem;
         gap: 1.25rem;
     }
     .record-head { display: grid; padding-bottom: 0.75rem; border-bottom: 1px solid var(--rule); }
-    .row-title-desktop, .row-date-desktop { display: block; }
-    .row-title-mobile, .row-date-mobile { display: none; }
+    .row-title-desktop, .row-date-desktop, .row-price-desktop { display: block; }
+    .row-title-mobile, .row-date-mobile, .row-price-mobile { display: none; }
     .editor-panel { padding: 2rem; }
 }
 

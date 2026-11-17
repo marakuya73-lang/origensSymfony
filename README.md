@@ -19,7 +19,7 @@ GEMINI_FALLBACK_MODEL=gemini-3.5-flash-lite
 
 No formulário, adicione pelo menos uma foto. Grave uma descrição curta no navegador (o microfone pede HTTPS) ou envie um arquivo WebM, MP3, M4A, WAV ou OGG de até 10 MB. As notas são livres e também opcionais. **Gerar perfil com IA** preenche nome, descrição, dimensão, materiais, cuidados, feito à mão e, numa peça nova, o tamanho. As perguntas aparecem num painel de conversa no próprio formulário. Responda por texto ou com outro áudio. Cada resposta segue com o histórico (guardado no navegador, não no servidor) e com os valores atuais do formulário. A IA atualiza o que ainda falta e faz a próxima pergunta, até dizer que o perfil está completo ou até você encerrar. Um campo que você editou à mão não é reescrito, a menos que a resposta peça essa mudança. Revise e só então salve.
 
-A categoria (1, 2 ou 3) continua manual: ela só distingue a referência da peça e não tem um nome no arquivo. Não há campo de preço.
+A categoria (1, 2 ou 3) continua manual: ela só distingue a referência da peça e não tem um nome no arquivo. O preço de venda é opcional, em reais, e fica só no arquivo reservado e na planilha (formato `1.250,00` para o Excel em português). A página pública não mostra o preço, e a IA não preenche esse campo.
 
 Se a chave faltar, a cota da API acabar ou o serviço falhar, o formulário mostra o motivo em português e continua editável.
 

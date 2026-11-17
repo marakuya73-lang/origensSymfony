@@ -25,6 +25,7 @@ final class SellerTable
             $rows[] = [
                 $artefact->getCode(),
                 $artefact->getTitle(),
+                SalePrice::excel($artefact->getSalePriceCents()),
                 $artefact->getDescription(),
                 $artefact->getSize(),
                 (string) $artefact->getCategory(),
@@ -47,6 +48,7 @@ final class SellerTable
         return [
             'Referência',
             'Nome',
+            'Preço de venda (R$)',
             'Descrição',
             'Tamanho',
             'Categoria',

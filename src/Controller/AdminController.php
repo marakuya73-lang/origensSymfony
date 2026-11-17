@@ -13,6 +13,7 @@ use App\Artefact\ImageStore;
 use App\Artefact\InvalidArtefact;
 use App\Artefact\ProfileExchange;
 use App\Artefact\ProfileGenerationFailed;
+use App\Artefact\SalePrice;
 use App\Artefact\SellerTable;
 use App\Artefact\SubmissionParser;
 use App\Artefact\TabularFile;
@@ -308,6 +309,7 @@ final class AdminController extends AbstractController
                 'code' => $artefact->getCode(),
                 'title' => $artefact->getTitle(),
                 'createdOn' => $artefact->createdOn(),
+                'price' => SalePrice::brl($artefact->getSalePriceCents()),
                 'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,
                 'url' => ArtefactRules::isValidToken($token)
                     ? $request->getSchemeAndHttpHost().ArtefactRules::publicPath($token)
