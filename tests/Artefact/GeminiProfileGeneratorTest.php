@@ -55,6 +55,15 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertStringContainsString('espiritual', $body['system_instruction']);
         self::assertStringContainsString('Três materiais ditos são três itens', $body['system_instruction']);
         self::assertStringContainsString('Nunca substitua uma descrição por uma versão mais curta', $body['system_instruction']);
+        self::assertStringContainsString('É proibido, no nome e na descrição: "como dito"', $body['system_instruction']);
+        self::assertStringContainsString('Teça cada material, cor, pedra e pena dentro da história', $body['system_instruction']);
+        self::assertStringContainsString('Uma narrativa contínua e fluida, como um poema em prosa', $body['system_instruction']);
+        self::assertStringContainsString('Sem títulos de seção, sem tópicos, sem blocos nomeados', $body['system_instruction']);
+        self::assertStringContainsString('Ruim:', $body['system_instruction']);
+        self::assertStringContainsString('Bom:', $body['system_instruction']);
+        self::assertStringContainsString('Proibido "ideal para", "indicado para"', $body['system_instruction']);
+        self::assertStringContainsString('caatinga', $body['input'][0]['text']);
+        self::assertStringContainsString('Ainda não há nomes anteriores', $body['input'][0]['text']);
         self::assertStringNotContainsString('O nome é curto, não uma frase.', $body['system_instruction']);
         self::assertSame(16384, $body['generation_config']['max_output_tokens']);
         self::assertSame('low', $body['generation_config']['thinking_level']);
@@ -145,6 +154,43 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertStringNotContainsString('O citrino, quartzo que a tradição vê dourado', $captured['input'][0]['text']);
         self::assertSame('Abanilho', $profile->title);
         self::assertSame('O abano e a ametista.', $profile->description);
+    }
+
+    public function testRecentTitlesAreShownSoTheNextNameCanLeaveThem(): void
+    {
+        $captured = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
+            $captured = json_decode((string) $options['body'], true);
+
+            return $this->completed([
+                'title' => 'Buriti da vereda',
+                'description' => 'A palha guarda.',
+                'dimensions' => '',
+                'materials' => [['name' => 'Palha', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+
+        $this->generator($client, 'test-key')->suggest(
+            'jpeg-bytes',
+            'image/jpeg',
+            null,
+            null,
+            'Palha.',
+            '',
+            [],
+            [],
+            [],
+            ['Noite de luar', 'Sereno na lua'],
+        );
+
+        self::assertIsArray($captured);
+        self::assertStringContainsString('Noite de luar', $captured['input'][0]['text']);
+        self::assertStringContainsString('Sereno na lua', $captured['input'][0]['text']);
+        self::assertStringContainsString('Não repita as palavras nem o jeito destes nomes já usados', $captured['input'][0]['text']);
+        self::assertStringContainsString('cerrado', $captured['input'][0]['text']);
     }
 
     public function testMissingKeyDoesNotCallTheApi(): void

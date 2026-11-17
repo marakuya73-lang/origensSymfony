@@ -17,6 +17,16 @@
 #     text: "O que a palavra significa na oficina."
 #
 # Os textos são tradição, não fato e não ensinamento de um povo específico.
+#
+# Banco de nomes (title_inspiration). O nome parte da peça; o banco só abre o leque.
+# Para incluir uma imagem, acrescente um item em groups, com word e hint curtos.
+#
+# title_inspiration:
+#   avoid: [noite, lua]
+#   groups:
+#     - name: Biomas
+#       entries:
+#         - {word: cerrado, hint: "campo alto e ipê"}
 
 stones:
   - id: quartzo-cristal
@@ -596,3 +606,90 @@ glossary:
   - term: búzios
     mishearings: [buzios, busios]
     text: "Conchas pequenas usadas como contas e, nas casas de matriz africana, como oráculo."
+
+title_inspiration:
+  avoid: [noite, lua, luar, sereno, sonho, místico, sagrado]
+  groups:
+    - name: Biomas e paisagens
+      entries:
+        - {word: cerrado, hint: "campo alto, ipê, seca luminosa"}
+        - {word: caatinga, hint: "mandacaru, pedra quente, céu largo"}
+        - {word: pantanal, hint: "água e terra no mesmo chão"}
+        - {word: mata atlântica, hint: "sombra úmida, folha grande"}
+        - {word: sertão, hint: "distância, poeira, firmeza"}
+        - {word: vereda, hint: "buriti e água no cerrado"}
+        - {word: chapada, hint: "serra de mesa, horizonte"}
+        - {word: serra, hint: "subida, vento, pedra"}
+        - {word: cachoeira, hint: "queda, espuma, voz da água"}
+        - {word: igarapé, hint: "caminho d'água sob a mata"}
+        - {word: restinga, hint: "areia, vento salgado, moita"}
+        - {word: pampa, hint: "campo aberto e céu baixo"}
+    - name: Aves
+      entries:
+        - {word: sabiá, hint: "canto de quintal"}
+        - {word: bem-te-vi, hint: "aviso claro"}
+        - {word: joão-de-barro, hint: "casa feita de barro"}
+        - {word: seriema, hint: "passo longo no cerrado"}
+        - {word: tuiuiú, hint: "ave grande do pantanal"}
+        - {word: jaçanã, hint: "passo sobre a folha d'água"}
+        - {word: acauã, hint: "canto que anuncia chuva"}
+        - {word: garça, hint: "espera à beira da água"}
+    - name: Plantas e flores
+      entries:
+        - {word: ipê, hint: "flor que chega antes da folha"}
+        - {word: buriti, hint: "palmeira da vereda"}
+        - {word: mandacaru, hint: "flor da caatinga"}
+        - {word: jatobá, hint: "árvore de casca grossa e fruto doce"}
+        - {word: aroeira, hint: "árvore de sombra e resina"}
+        - {word: jenipapo, hint: "tinta azul-escura da fruta"}
+        - {word: vitória-régia, hint: "folha que sustenta a água"}
+        - {word: sempre-viva, hint: "flor que permanece"}
+    - name: Ventos e tempo
+      entries:
+        - {word: minuano, hint: "vento frio do sul"}
+        - {word: garoa, hint: "chuva miúda"}
+        - {word: trovoada, hint: "céu que fala alto"}
+        - {word: estiagem, hint: "terra à espera"}
+        - {word: orvalho, hint: "água da madrugada"}
+        - {word: brasa, hint: "fogo que ficou"}
+    - name: Palavras tupi
+      entries:
+        - {word: ara, hint: "céu, tempo, dia"}
+        - {word: y, hint: "água"}
+        - {word: "ka'a", hint: "mata, erva"}
+        - {word: itá, hint: "pedra"}
+        - {word: yby, hint: "terra"}
+        - {word: ybytu, hint: "vento"}
+        - {word: tata, hint: "fogo"}
+        - {word: coema, hint: "manhã"}
+        - {word: arandu, hint: "sabedoria que escuta"}
+        - {word: poranga, hint: "bonito, formoso"}
+    - name: Folclore
+      entries:
+        - {word: curupira, hint: "guarda da mata, pé virado"}
+        - {word: iara, hint: "senhora das águas"}
+        - {word: caipora, hint: "proteção da caça e da mata"}
+        - {word: boitatá, hint: "fogo que cuida do campo"}
+        - {word: saci, hint: "redemoinho, travessura, um pé só"}
+        - {word: boto, hint: "encanto do rio"}
+    - name: Canto e verso
+      entries:
+        - {word: toada, hint: "canto que repete e embala"}
+        - {word: modinha, hint: "canção mansa de sala"}
+        - {word: cordel, hint: "verso de feira, imagem direta"}
+        - {word: aboio, hint: "chamado longo no pasto"}
+        - {word: haicai de quintal, hint: "três fôlegos, uma imagem"}
+    - name: Horas
+      entries:
+        - {word: alvorada, hint: "primeiro claro"}
+        - {word: meio-dia, hint: "sol a pino, sombra curta"}
+        - {word: entardecer, hint: "luz que desce sem pressa"}
+        - {word: hora quente, hint: "o auge do dia"}
+    - name: Gestos
+      entries:
+        - {word: trançar, hint: "juntar com as mãos"}
+        - {word: defumar, hint: "passar fumaça"}
+        - {word: benzer, hint: "gesto de cuidado"}
+        - {word: oferecer, hint: "estender o que se tem"}
+        - {word: abanar, hint: "mover o ar com o leque"}
+        - {word: pousar, hint: "deixar a coisa assentar"}
