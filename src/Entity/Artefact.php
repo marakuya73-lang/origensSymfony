@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Artefact\ArtefactData;
+use App\Artefact\ArtefactRules;
 use App\Artefact\Identifier;
 use App\Repository\ArtefactRepository;
 use Doctrine\DBAL\Types\Types;
@@ -33,7 +34,7 @@ class Artefact
     #[ORM\Column(length: 180)]
     private string $title = '';
 
-    #[ORM\Column(length: 2000)]
+    #[ORM\Column(length: ArtefactRules::DESCRIPTION_MAX)]
     private string $description = '';
 
     #[ORM\Column(length: 100)]

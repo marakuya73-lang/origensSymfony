@@ -37,6 +37,38 @@ final class ProfileExchangeTest extends TestCase
         self::assertSame('aproximadamente 18 cm', $changed->dimensions);
     }
 
+    public function testALaterTurnKeepsARicherDescriptionUnlessARewriteWasAsked(): void
+    {
+        $current = 'Ela contou a história da peça, o sentido espiritual da proteção e a intenção de cura.';
+        $form = ProfileExchange::form((string) json_encode([
+            'title' => 'Verso',
+            'description' => $current,
+            'dimensions' => '',
+            'materials' => [['name' => 'Palha', 'note' => '']],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito devagar.',
+            'size' => 'M',
+        ], JSON_THROW_ON_ERROR));
+
+        $shortened = ProfileExchange::merge($this->profile('Outro nome', '', 'M'), $form, [], []);
+        self::assertSame($current, $shortened->description);
+
+        $enriched = GeneratedProfile::fromModel([
+            'title' => 'Verso',
+            'description' => $current.' Também falou do sonho à beira do rio.',
+            'dimensions' => '',
+            'materials' => [['name' => 'Palha', 'note' => '']],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito devagar.',
+            'size' => 'M',
+        ]);
+        $grown = ProfileExchange::merge($enriched, $form, [], []);
+        self::assertSame($current.' Também falou do sonho à beira do rio.', $grown->description);
+
+        $rewritten = ProfileExchange::merge($this->profile('Outro nome', '', 'M'), $form, [], ['description']);
+        self::assertSame('Uma peça pequena.', $rewritten->description);
+    }
+
     public function testHistoryAndTouchedFieldsAreLimitedToTheConversation(): void
     {
         $history = ProfileExchange::history((string) json_encode([

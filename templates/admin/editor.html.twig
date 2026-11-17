@@ -82,7 +82,7 @@
             <details class="assist-fold" data-assist>
                 <summary class="assist-summary">✨ Preencher com IA</summary>
                 <div class="assist-body">
-                    <p class="assist-lead">A foto principal, um áudio ou algumas notas sugerem o perfil. O nome sai poético; material, dimensão e cuidados ficam factuais. Nada é salvo neste passo.</p>
+                    <p class="assist-lead">A foto principal, um áudio ou algumas notas sugerem o perfil. O nome sai poético; a descrição guarda a história e o sentido que você contar. Material, dimensão e cuidados ficam factuais. Nada é salvo neste passo.</p>
                     <label class="field">Notas (opcional)
                         <textarea rows="3" maxlength="4000" data-profile-assist-target="notes" placeholder="O que a peça é, de onde veio o material, o que não aparece na foto."></textarea>
                     </label>
@@ -179,9 +179,10 @@
             </label>
             <p class="hint">Em reais. Fica no arquivo e na planilha, e não aparece na página pública.</p>
 
-            <label class="field">Descrição breve (opcional)
-                <textarea name="description" rows="2" maxlength="2000">{{ draft.description }}</textarea>
+            <label class="field">Descrição (opcional)
+                <textarea name="description" rows="8" maxlength="8000">{{ draft.description }}</textarea>
             </label>
+            <p class="hint">A história da peça, com o que foi contado: origem, sentido e intenção.</p>
 
             <fieldset class="material-set">
                 <legend>Materiais e notas</legend>
