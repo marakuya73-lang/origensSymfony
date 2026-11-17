@@ -29,6 +29,62 @@
                 <p class="label editor-kicker">{{ draft.code ?: 'ORIGENS · Novo registro' }}</p>
             </div>
 
+            <details class="assist-fold" data-assist>
+                <summary class="assist-summary">✨ Preencher com IA</summary>
+                <div class="assist-body">
+                    <p class="assist-lead">A foto principal, um áudio ou algumas notas sugerem o perfil. O nome sai poético; material, dimensão e cuidados ficam factuais. Nada é salvo neste passo.</p>
+                    <label class="field">Notas (opcional)
+                        <textarea rows="3" maxlength="4000" data-profile-assist-target="notes" placeholder="O que a peça é, de onde veio o material, o que não aparece na foto."></textarea>
+                    </label>
+                    <div class="recorder" data-slot="intro">
+                        <button type="button" class="btn btn-outline record-btn" data-action="profile-assist#toggleRecord">
+                            <span class="record-dot" aria-hidden="true"></span>
+                            <span data-record-label>Gravar</span>
+                        </button>
+                        <label class="btn btn-ghost">
+                            {{ icons.svg('upload') }} Arquivo
+                            <input class="sr-only" type="file" accept="audio/*,.webm,.mp3,.m4a,.wav,.ogg,.aac,.flac" data-action="change->profile-assist#chooseFile">
+                        </label>
+                        <div class="record-ready" hidden>
+                            <audio controls></audio>
+                            <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio" title="Remover áudio">{{ icons.svg('trash') }}</button>
+                            <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#sendClip">Enviar</button>
+                        </div>
+                    </div>
+                    <p class="hint">Até 3 minutos ou 10 MB. A gravação no navegador pede HTTPS.</p>
+                    <div class="assist-actions">
+                        <button type="button" class="btn" data-profile-assist-target="generate" data-action="profile-assist#generate">Gerar perfil com IA</button>
+                    </div>
+                    <div class="chat" data-profile-assist-target="chat" hidden>
+                        <div class="chat-thread" data-profile-assist-target="thread"></div>
+                        <div data-profile-assist-target="composer">
+                            <label class="field">Resposta
+                                <textarea rows="2" maxlength="2000" data-profile-assist-target="reply" placeholder="Responda por texto, ou grave um áudio abaixo."></textarea>
+                            </label>
+                            <div class="recorder" data-slot="reply">
+                                <button type="button" class="btn btn-outline record-btn" data-action="profile-assist#toggleRecord">
+                                    <span class="record-dot" aria-hidden="true"></span>
+                                    <span data-record-label>Gravar</span>
+                                </button>
+                                <div class="record-ready" hidden>
+                                    <audio controls></audio>
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio da resposta" title="Remover áudio">{{ icons.svg('trash') }}</button>
+                                    <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#reply">Enviar</button>
+                                </div>
+                            </div>
+                            <div class="assist-actions">
+                                <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#reply">Enviar</button>
+                                <button type="button" class="btn btn-ghost" data-action="profile-assist#endChat">Encerrar</button>
+                            </div>
+                        </div>
+                        <p class="hint" data-profile-assist-target="done" hidden>O perfil está completo. Revise os campos e salve quando quiser.</p>
+                        <button type="button" class="btn btn-ghost" data-profile-assist-target="resume" data-action="profile-assist#resume" hidden>Ainda quero ajustar</button>
+                    </div>
+                    <p class="form-error" role="alert" data-profile-assist-target="error" hidden></p>
+                    <p class="hint" data-profile-assist-target="status" hidden></p>
+                </div>
+            </details>
+
             <label class="field">Nome do artefacto
                 <input name="title" required maxlength="180" value="{{ draft.title }}" autofocus>
             </label>
@@ -113,45 +169,6 @@
                         <input type="hidden" name="images[]" value="">
                     </div>
                 </template>
-            </fieldset>
-
-            <fieldset class="assist" data-assist>
-                <legend>Perfil com IA</legend>
-                <p class="assist-lead">Use a foto principal, grave uma descrição curta ou envie um áudio e, se quiser, escreva notas. A sugestão preenche o que der para saber e pergunta o que ainda falta. Nada é salvo neste passo.</p>
-                <label class="field">Notas para a IA (opcional)
-                    <textarea rows="3" maxlength="4000" data-profile-assist-target="notes" placeholder="O que a peça é, de onde veio o material, o que não aparece na foto."></textarea>
-                </label>
-                <div class="assist-actions">
-                    <button type="button" class="btn btn-outline" data-profile-assist-target="record" data-action="profile-assist#record">{{ icons.svg('mic') }} Gravar descrição</button>
-                    <button type="button" class="btn btn-ghost" data-profile-assist-target="stop" data-action="profile-assist#stop" hidden>Parar</button>
-                    <label class="btn btn-ghost">
-                        {{ icons.svg('upload') }} Enviar áudio
-                        <input class="sr-only" type="file" accept="audio/*,.webm,.mp3,.m4a,.wav,.ogg,.aac,.flac" data-profile-assist-target="file" data-action="change->profile-assist#chooseFile">
-                    </label>
-                    <button type="button" class="btn btn-ghost" data-profile-assist-target="clear" data-action="profile-assist#clearAudio" hidden>Remover áudio</button>
-                </div>
-                <p class="hint" data-profile-assist-target="audioState" hidden></p>
-                <audio data-profile-assist-target="preview" controls hidden></audio>
-                <p class="hint">Áudio opcional, até 3 minutos ou 10 MB. Vale como descrição inicial ou como resposta. A gravação no navegador pede HTTPS.</p>
-                <div class="assist-actions">
-                    <button type="button" class="btn" data-profile-assist-target="generate" data-action="profile-assist#generate">Gerar perfil com IA</button>
-                </div>
-                <div class="chat" data-profile-assist-target="chat" hidden>
-                    <div class="chat-thread" data-profile-assist-target="thread"></div>
-                    <div data-profile-assist-target="composer">
-                        <label class="field">Resposta
-                            <textarea rows="2" maxlength="2000" data-profile-assist-target="reply" placeholder="Responda por texto. O áudio acima também vale."></textarea>
-                        </label>
-                        <div class="assist-actions">
-                            <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#reply">Enviar resposta</button>
-                            <button type="button" class="btn btn-ghost" data-action="profile-assist#endChat">Encerrar</button>
-                        </div>
-                    </div>
-                    <p class="hint" data-profile-assist-target="done" hidden>O perfil está completo. Revise os campos e salve quando quiser.</p>
-                    <button type="button" class="btn btn-ghost" data-profile-assist-target="resume" data-action="profile-assist#resume" hidden>Ainda quero ajustar</button>
-                </div>
-                <p class="form-error" role="alert" data-profile-assist-target="error" hidden></p>
-                <p class="hint" data-profile-assist-target="status" hidden></p>
             </fieldset>
 
             <fieldset class="material-set">

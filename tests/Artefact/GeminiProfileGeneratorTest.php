@@ -48,6 +48,10 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame('audio/webm', $body['input'][2]['mime_type']);
         self::assertSame(base64_encode('audio-bytes'), $body['input'][2]['data']);
         self::assertStringContainsString('Veio de uma palmeira.', $body['input'][0]['text']);
+        self::assertStringContainsString('poético', $body['system_instruction']);
+        self::assertStringContainsString('Não invente procedência', $body['system_instruction']);
+        self::assertStringNotContainsString('O nome é curto, não uma frase.', $body['system_instruction']);
+        self::assertStringContainsString('metáfora', $body['response_format']['schema']['properties']['title']['description']);
         $schemaFields = array_keys($body['response_format']['schema']['properties']);
         self::assertNotContains('price', $schemaFields);
         self::assertNotContains('sale_price', $schemaFields);
