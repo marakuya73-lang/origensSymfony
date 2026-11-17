@@ -1,0 +1,598 @@
+# Acervo simbólico da oficina, em português do Brasil.
+# A geração usa este arquivo. Não é preciso alterar código para incluir uma pedra, uma ave ou uma palavra.
+#
+# Cada lista (stones, feathers, materials, colours, elements, chakras, signs, planets, intentions)
+# tem entradas neste formato:
+#
+#   - id: ametista                    # identificador único, sem espaços
+#     names: [ametista]               # como o nome pode aparecer na fala ou no texto
+#     brief: "Uma frase."            # entra no pedido quando o nome só surge no áudio ou na foto
+#     text: "O sentido tradicional." # entra por inteiro quando o nome já está nas notas, no formulário ou na conversa
+#     related: [chakra-terceiro-olho] # opcional; puxa só a frase da outra entrada
+#
+# O glossário corrige a grafia do texto devolvido pela IA:
+#
+#   - term: abanilho
+#     mishearings: [abanilio, habanilho]
+#     text: "O que a palavra significa na oficina."
+#
+# Os textos são tradição, não fato e não ensinamento de um povo específico.
+
+stones:
+  - id: quartzo-cristal
+    names: [quartzo cristal, cristal de rocha, quartzo transparente, quartzo branco, quartzo, cristal]
+    brief: "Na tradição das pedras, o quartzo cristal amplia e clarifica a intenção."
+    text: "Na tradição das pedras, o quartzo cristal, ou cristal de rocha, é tido como pedra de clareza e de ampliação: recebe a intenção e a devolve sem lhe impor um tema. Costuma-se associá-lo à luz, à memória e ao início de um trabalho."
+    related: [limpeza]
+
+  - id: quartzo-rosa
+    names: [quartzo rosa, quartz rosa]
+    brief: "Na tradição, o quartzo rosa acompanha o afeto, o acolhimento e o amor gentil."
+    text: "Na tradição das pedras, o quartzo rosa está ligado ao afeto, ao acolhimento e à reconciliação consigo. Não promete um amor; lembra um cuidado macio, de peito aberto."
+    related: [chakra-cardiaco, amor]
+
+  - id: ametista
+    names: [ametista]
+    brief: "Na tradição, a ametista acompanha a serenidade, o discernimento e o recolhimento."
+    text: "Na tradição das pedras, a ametista é associada à serenidade, ao discernimento e ao recolhimento do espírito. Costuma-se ligá-la ao sonho lúcido e a uma sobriedade que não apaga a intuição."
+    related: [chakra-terceiro-olho]
+
+  - id: turmalina-negra
+    names: [turmalina negra, turmalina preta]
+    brief: "Na tradição, a turmalina negra é pedra de proteção e de escoamento do que pesa."
+    text: "Na tradição das pedras, a turmalina negra é tida como proteção: ajuda a escoar o que pesa e a firmar o corpo no chão. Não se diz que ela lute contra alguém; diz-se que ela guarda a margem da peça."
+    related: [chakra-raiz, protecao]
+
+  - id: citrino
+    names: [citrino]
+    brief: "Na tradição, o citrino acompanha a alegria, a confiança e a prosperidade."
+    text: "O citrino, quartzo que a tradição vê dourado pelo calor da terra, é associado à alegria, à confiança e à prosperidade sem culpa. Costuma-se oferecê-lo quando a intenção é abundância e ânimo."
+    related: [chakra-plexo, abundancia]
+
+  - id: obsidiana
+    names: [obsidiana]
+    brief: "Na tradição, a obsidiana é espelho escuro de verdade e de proteção."
+    text: "Na tradição das pedras, a obsidiana, vidro vulcânico, é um espelho escuro: mostra o que estava oculto e protege pelo confronto honesto, não pelo adorno. Pede respeito; não se usa o nome dela para assustar."
+    related: [protecao]
+
+  - id: agata
+    names: [ágata, agata]
+    brief: "Na tradição, a ágata estabiliza, acolhe e dá continuidade."
+    text: "Na tradição das pedras, a ágata é estabilidade e continuidade: as faixas lembram camadas de tempo, um passo depois do outro. Costuma-se associá-la ao acolhimento e à fala calma."
+    related: [chakra-laringeo]
+
+  - id: jaspe
+    names: [jaspe]
+    brief: "Na tradição, o jaspe é pedra de chão, vitalidade e perseverança."
+    text: "Na tradição das pedras, o jaspe é pedra de chão: vitalidade quieta, perseverança e o corpo lembrado de que também é terra. Não é pedra de fuga; é pedra de ficar."
+    related: [chakra-raiz]
+
+  - id: lapis-lazuli
+    names: [lápis-lazúli, lapis-lazuli, lápis lazúli, lapis lazuli, lapislazuli]
+    brief: "Na tradição, o lápis-lazúli acompanha a verdade da fala e o olhar interior."
+    text: "Na tradição das pedras, o lápis-lazúli é associado à verdade dita com nobreza e ao olhar interior. O azul profundo lembra o céu noturno; não se inventa para ele uma origem que a pessoa não tenha contado."
+    related: [chakra-terceiro-olho, chakra-laringeo]
+
+  - id: pirita
+    names: [pirita]
+    brief: "Na tradição, a pirita acompanha a confiança, o ânimo e a prosperidade alerta."
+    text: "Na tradição das pedras, a pirita, o ouro dos tolos, é confiança e ânimo: brilho que lembra prosperidade sem se fazer passar por ouro de fato. Costuma-se associá-la à vontade de agir."
+    related: [abundancia]
+
+  - id: selenita
+    names: [selenita]
+    brief: "Na tradição, a selenita acompanha a limpeza, a calma e a luz branca."
+    text: "Na tradição das pedras, a selenita é ligada à Lua, à limpeza suave e a uma luz branca que não agride. Costuma-se usá-la como pausa e como claridade, não como arma."
+    related: [limpeza, lua]
+
+  - id: olho-de-tigre
+    names: [olho de tigre, olho-de-tigre]
+    brief: "Na tradição, o olho de tigre acompanha a coragem prática e o foco."
+    text: "Na tradição das pedras, o olho de tigre é coragem com os pés no chão: foco, discriminação e a força de olhar sem se perder. O brilho dourado lembra sol e terra juntos."
+    related: [chakra-plexo]
+
+  - id: amazonita
+    names: [amazonita]
+    brief: "Na tradição, a amazonita acalma o excesso e abre uma fala verdadeira."
+    text: "Na tradição das pedras, a amazonita é associada à calma do excesso e a uma fala que não fere. O verde-água lembra mata e rio; o sentido é alívio, não promessa."
+    related: [chakra-laringeo]
+
+  - id: sodalita
+    names: [sodalita]
+    brief: "Na tradição, a sodalita acompanha o pensamento claro e a fala ponderada."
+    text: "Na tradição das pedras, a sodalita é pensamento claro e fala ponderada: o azul com veios brancos lembra razão e intuição no mesmo corpo. Costuma-se pedi-la quando a mente está ruidosa."
+    related: [chakra-terceiro-olho]
+
+  - id: fluorita
+    names: [fluorita, fluorite]
+    brief: "Na tradição, a fluorita ordena o pensamento e protege a concentração."
+    text: "Na tradição das pedras, a fluorita é ordem mental: ajuda a separar uma ideia da outra e a estudar com proteção. As cores em faixa lembram que a clareza pode ser múltipla."
+    related: [chakra-terceiro-olho]
+
+  - id: hematita
+    names: [hematita]
+    brief: "Na tradição, a hematita firma o corpo, o peso e a presença."
+    text: "Na tradição das pedras, a hematita é peso amigo: presença, raiz e o corpo lembrado da própria gravidade. Costuma-se associá-la à proteção prática, de quem fica inteiro."
+    related: [chakra-raiz, protecao]
+
+  - id: howlita
+    names: [howlita]
+    brief: "Na tradição, a howlita acompanha a paciência e o sono do excesso."
+    text: "Na tradição das pedras, a howlita é paciência e abrandamento da raiva. O branco com veios cinza lembra osso e calma; não se promete com ela o apagamento de uma dor."
+    related: [limpeza]
+
+  - id: cornalina
+    names: [cornalina, cornalina]
+    brief: "Na tradição, a cornalina acompanha o ânimo, o sangue vital e a coragem."
+    text: "Na tradição das pedras, a cornalina é ânimo e vitalidade: o laranja-vermelho do sangue que volta a circular. Costuma-se associá-la à coragem de começar."
+    related: [chakra-sacral, fogo]
+
+  - id: turquesa
+    names: [turquesa]
+    brief: "Na tradição, a turquesa é proteção de viagem, fala e céu."
+    text: "Na tradição de muitos povos, a turquesa protege quem caminha e quem fala. No Brasil ela entra nas peças como céu e como amuleto; o sentido de cada povo não deve ser inventado se ela não o nomeou."
+    related: [chakra-laringeo, protecao]
+
+feathers:
+  - id: pena
+    names: [penas, pluma, plumas, pena de]
+    brief: "Em muitas tradições, a pena liga o chão ao alto e pede licença de quem a colheu."
+    text: "Em muitas tradições indígenas brasileiras, a pena não é enfeite: liga quem a porta ao alto, ao canto da ave e à licença de quem a colheu. O sentido muda com o povo e com o pássaro; o que cabe aqui é uma leitura geral, não o ensinamento de uma nação."
+    related: [ar]
+
+  - id: arara
+    names: [arara, arara-vermelha, arara azul]
+    brief: "A arara, na leitura geral das penas, é fala colorida, sol e alegria de presença."
+    text: "Na leitura geral das penas no Brasil, a arara é sol, fala colorida e alegria de quem se mostra. Cada cor de arara puxa um sentido — vermelho de vida, azul de céu — sem substituir o que o povo daquela ave conta, se ela o nomear."
+    related: [pena, fogo]
+
+  - id: gaviao
+    names: [gavião, gaviao]
+    brief: "O gavião, na leitura geral, é visão alta, precisão e recado do alto."
+    text: "Na leitura geral das aves de rapina no Brasil, o gavião é visão que desce do alto com precisão. Em muitas tradições indígenas ele é mensageiro e guarda; não se deve falar em nome de um povo se ela não o disse."
+    related: [pena, ar]
+
+  - id: coruja
+    names: [coruja]
+    brief: "A coruja, na tradição ampla, é visão noturna, segredo e sabedoria quieta."
+    text: "Na tradição ampla, a coruja vê no escuro e guarda o segredo sem alarde. Nas peças, a pena dela costuma acompanhar intuição e vigília; não é presságio de morte, a menos que ela mesma tenha dito isso."
+    related: [pena, lua]
+
+  - id: pavao
+    names: [pavão, pavao]
+    brief: "O pavão, na tradição, é beleza que também é olho, vigilância e dignidade."
+    text: "Na tradição, o pavão é beleza que vê: os olhos da cauda lembram vigilância e dignidade, não só vaidade. A pena entra na peça como esplendor que também protege."
+    related: [pena]
+
+  - id: galinha-dangola
+    names: [galinha-d'angola, galinha d'angola, galinha da angola, galinha-da-angola]
+    brief: "A galinha-d'angola, nas casas brasileiras, é guarda, alerta e proteção do terreiro e do quintal."
+    text: "Nas casas brasileiras e em muitas tradições de matriz africana, a galinha-d'angola é guarda: o canto alerta, o preto e o branco pintam a vigilância. A pena dela na peça é proteção de quem olha o terreiro, não um enfeite mudo."
+    related: [pena, protecao]
+
+  - id: pena-branca
+    names: [pena branca, penas brancas, pluma branca]
+    brief: "A pena branca, na tradição, é paz, licença, alto e limpeza."
+    text: "Na tradição das penas, a branca é paz, licença e altura: o que se oferece ao alto e o que acalma. Costuma-se associá-la à limpeza e ao começo, sem apagar a ave de onde ela veio, se ela a nomeou."
+    related: [pena, branco, limpeza]
+
+  - id: pena-preta
+    names: [pena preta, penas pretas, pluma preta]
+    brief: "A pena preta, na tradição, é proteção, mistério e o ventre da noite."
+    text: "Na tradição das penas, a preta é proteção e mistério: a noite que guarda, não a noite que ameaça. Em muitas leituras brasileiras ela absorve o que não deve seguir com a pessoa."
+    related: [pena, preto, protecao]
+
+  - id: beija-flor
+    names: [beija-flor, beija flor]
+    brief: "O beija-flor, na leitura brasileira, é alegria, recado entre flores e doçura firme."
+    text: "Na leitura brasileira, o beija-flor é alegria miúda e recado entre flores: doçura que também é firme, porque o voo não para. A pena, rara e pequena, pede cuidado de quem a usa."
+    related: [pena, amor]
+
+  - id: garca
+    names: [garça, garca]
+    brief: "A garça, na tradição, é paciência, água rasa e pureza atenta."
+    text: "Na tradição, a garça é paciência à beira da água: pureza que espera o momento certo. A pena branca dela soma altura e silêncio."
+    related: [pena, agua, branco]
+
+materials:
+  - id: palha
+    names: [palha, palhas]
+    brief: "Na tradição, a palha é trançado, casa, sol e o tempo das mãos."
+    text: "Na tradição do trançado brasileiro, a palha é casa, sol e tempo das mãos: o que era folha vira abrigo. Cada ponto guarda paciência; a peça de palha costuma pedir proteção leve e continuidade."
+    related: [terra]
+
+  - id: sementes
+    names: [semente, sementes]
+    brief: "Na tradição, a semente é começo, promessa e o que ainda vai crescer."
+    text: "Na tradição, a semente é começo guardado: promessa, alimento e o que ainda não se mostrou. Numa peça, ela lembra que a intenção foi plantada, não que o fruto já esteja garantido."
+    related: [terra, abundancia]
+
+  - id: madeira
+    names: [madeira]
+    brief: "Na tradição, a madeira é eixo, memória da árvore e sustentação."
+    text: "Na tradição, a madeira é eixo e memória da árvore: sustentação, raiz que subiu. Não se inventa a espécie nem o corte; se ela não disse de que árvore veio, fala-se só da madeira como suporte e como vida que foi."
+    related: [terra]
+
+  - id: couro
+    names: [couro]
+    brief: "Na tradição, o couro é pele, proteção e o que atravessou o tempo."
+    text: "Na tradição, o couro é pele que permanece: proteção, travessia e respeito ao animal, que não deve ser esquecido. A peça de couro guarda calor e limite, o que é de dentro e o que é de fora."
+    related: [terra, protecao]
+
+  - id: linho
+    names: [linho]
+    brief: "Na tradição, o linho é pureza, frescura e uma luz sóbria."
+    text: "Na tradição dos panos, o linho é pureza fresca e luz sóbria: fibra que respira e que se associa ao altar limpo e ao corpo arejado. Não é riqueza ostensiva; é clareza."
+    related: [branco, ar]
+
+  - id: algodao
+    names: [algodão, algodao]
+    brief: "Na tradição, o algodão é maciez, nuvem e cuidado de quem embala."
+    text: "Na tradição dos panos, o algodão é maciez e nuvem: o que embala, absorve e aquieta. Costuma-se associá-lo ao cuidado cotidiano, não a um poder raro."
+    related: [branco, ar]
+
+  - id: conchas
+    names: [concha, conchas]
+    brief: "Na tradição, a concha é casa do mar, ouvido e proteção da maré."
+    text: "Na tradição, a concha é casa pequena do mar: ouvido que guarda o rumor da água e proteção de quem vive na maré. Ela lembra origem aquática sem inventar um litoral que ela não tenha contado."
+    related: [agua]
+
+  - id: buzios
+    names: [búzios, buzios, búzio, buzio]
+    brief: "O búzio, nas casas de matriz africana, é palavra e moeda antiga; fora delas, é proteção e comunicação."
+    text: "Nos candomblés e em outras casas de matriz africana, o búzio é palavra de oráculo e moeda antiga. Fora desse chão, a peça pode trazê-lo como proteção e como comunicação com o invisível; não se finge um jogo de búzios se ela não o descreveu."
+    related: [agua, protecao]
+
+  - id: osso
+    names: [osso, ossos]
+    brief: "Na tradição, o osso é ancestral, estrutura e memória do que sustentou a vida."
+    text: "Na tradição, o osso é estrutura e ancestralidade: o que sustentou um corpo e permanece. Pede respeito e não deve ser tratado como troféu; se ela não contou de que ser veio, não se inventa."
+    related: [terra]
+
+  - id: cabaca
+    names: [cabaça, cabaca]
+    brief: "Na tradição brasileira, a cabaça é ventre, água guardada e instrumento."
+    text: "Na tradição brasileira, a cabaça é ventre vegetal: guarda água, vira cuia e vira instrumento. Costuma-se associá-la ao feminino que contém, ao alimento e à voz, quando ela chocalha."
+    related: [agua, terra]
+
+  - id: cipo
+    names: [cipó, cipo]
+    brief: "Na tradição, o cipó é laço da mata, flexibilidade e caminho que se enrosca."
+    text: "Na tradição da mata, o cipó é laço vivo: flexibilidade, amarração e o caminho que sobe torcido. Na peça ele prende sem rigidez e lembra a floresta, se ela falou da floresta."
+    related: [terra]
+
+colours:
+  - id: vermelho
+    names: [vermelho, vermelha]
+    brief: "Na cromoterapia e na tradição, o vermelho é vida, sangue, raiz e pulso."
+    text: "Na cromoterapia e na leitura esotérica, o vermelho é vida, sangue e raiz: pulso, coragem e desejo. Não é raiva por destino; é calor. Costuma-se ligá-lo à base do corpo."
+    related: [chakra-raiz, fogo]
+
+  - id: laranja
+    names: [laranja]
+    brief: "Na cromoterapia, o laranja é ânimo, criatividade e encontro."
+    text: "Na cromoterapia, o laranja é ânimo e criatividade: o vermelho que já conversa com a luz. Costuma-se associá-lo ao prazer de fazer e ao encontro, sem promessa médica."
+    related: [chakra-sacral]
+
+  - id: amarelo
+    names: [amarelo, amarela]
+    brief: "Na cromoterapia, o amarelo é sol, clareza mental e confiança."
+    text: "Na cromoterapia, o amarelo é sol e clareza: confiança, estudo e o plexo que se anima. A tradição não o trata como cura de um órgão; trata-o como cor de ânimo."
+    related: [chakra-plexo, sol]
+
+  - id: verde
+    names: [verde]
+    brief: "Na cromoterapia, o verde é equilíbrio, mata e coração que respira."
+    text: "Na cromoterapia, o verde é equilíbrio e mata: o coração que respira, a cura como recomposição e não como milagre. Costuma-se pousá-lo no meio do corpo, entre o que sobe e o que desce."
+    related: [chakra-cardiaco, cura]
+
+  - id: azul
+    names: [azul]
+    brief: "Na cromoterapia, o azul é calma, fala verdadeira e vastidão."
+    text: "Na cromoterapia, o azul é calma e vastidão: fala que não fere, céu e água funda. A tradição o associa à paz alerta, não ao silêncio de quem se apaga."
+    related: [chakra-laringeo, agua]
+
+  - id: anil
+    names: [anil, índigo, indigo]
+    brief: "Na cromoterapia, o anil é intuição, noite clara e olhar interior."
+    text: "Na cromoterapia, o anil, ou índigo, é a noite clara: intuição, sonho e o olhar que vê por dentro. Não se apresenta como vidência garantida."
+    related: [chakra-terceiro-olho]
+
+  - id: violeta
+    names: [violeta, roxo, roxa, púrpura, purpura]
+    brief: "Na cromoterapia, o violeta é transmutação, recolhimento e espírito."
+    text: "Na cromoterapia, o violeta é transmutação e recolhimento: o espírito que ordena sem negar o corpo. A púrpura antiga também lembra dignidade. É tradição de cor, não diagnóstico."
+    related: [chakra-coronario]
+
+  - id: rosa
+    names: [rosa, cor-de-rosa, cor de rosa]
+    brief: "Na tradição da cor, o rosa é afeto, doçura e amor sem ferida."
+    text: "Na tradição da cor, o rosa é afeto e doçura: amor que não precisa vencer ninguém. Costuma-se associá-lo ao cuidado e ao perdão miúdo."
+    related: [amor, chakra-cardiaco]
+
+  - id: branco
+    names: [branco, branca]
+    brief: "Na cromoterapia, o branco é claridade, pausa e o que ainda não tem cor."
+    text: "Na cromoterapia, o branco é claridade e pausa: a soma das cores, o altar limpo, o começo. Também pode ser luto em algumas casas; se ela não falou de luto, fica a leitura da luz."
+    related: [limpeza]
+
+  - id: preto
+    names: [preto, preta]
+    brief: "Na tradição da cor, o preto é proteção, mistério e o ventre que guarda."
+    text: "Na tradição da cor, o preto absorve e guarda: proteção, mistério e fertilidade da noite. Não é mal por natureza. Em muitas casas brasileiras é também axé e respeito."
+    related: [protecao]
+
+  - id: dourado
+    names: [dourado, dourada, ouro]
+    brief: "Na tradição da cor, o dourado é sol, valor e prosperidade luminosa."
+    text: "Na tradição da cor, o dourado é sol e valor: prosperidade que se vê, dignidade e calor. Se o ouro da peça for tinta ou fio, não se inventa que seja metal precioso."
+    related: [sol, abundancia]
+
+  - id: prateado
+    names: [prateado, prateada, prata]
+    brief: "Na tradição da cor, o prateado é lua, espelho e intuição."
+    text: "Na tradição da cor, o prateado é Lua e espelho: intuição, reflexo e uma riqueza fria, de noite. Não se afirma que a peça seja prata de lei se ela não o disse."
+    related: [lua]
+
+  - id: marrom
+    names: [marrom, castanho, castanha]
+    brief: "Na tradição da cor, o marrom é terra, raiz e confiabilidade."
+    text: "Na tradição da cor, o marrom é terra fértil: raiz, confiabilidade e o corpo que não precisa brilhar para sustentar. Costuma-se associá-lo ao chão e à casa."
+    related: [terra]
+
+elements:
+  - id: fogo
+    names: [fogo, chama]
+    brief: "Na tradição dos elementos, o fogo é transformação, vontade e axé que aquece."
+    text: "Na tradição dos elementos, o fogo transforma: vontade, cozinha, vela e o que não volta a ser o que era. Aquece e pede cuidado; não se romantiza a queimada."
+    related: [vermelho]
+
+  - id: agua
+    names: [água, agua]
+    brief: "Na tradição dos elementos, a água é sentimento, limpeza e caminho."
+    text: "Na tradição dos elementos, a água é sentimento, limpeza e caminho: lava, conduz e guarda memória. Pode ser rio, mar ou chuva; se ela não disse qual, não se escolhe um."
+    related: [azul, limpeza]
+
+  - id: terra
+    names: [terra]
+    brief: "Na tradição dos elementos, a terra é corpo, chão, sustento e ancestralidade."
+    text: "Na tradição dos elementos, a terra é corpo e chão: sustento, prazo longo e ancestralidade. Não se confunde com uma nação ou um território que ela não tenha nomeado."
+    related: [marrom]
+
+  - id: ar
+    names: [elemento ar, o ar, pelo ar]
+    brief: "Na tradição dos elementos, o ar é sopro, pensamento, fala e movimento."
+    text: "Na tradição dos elementos, o ar é sopro e pensamento: fala, fumaça que caminha e o que o abano move. Não se reduz a vazio; é o meio por onde o recado passa."
+    related: [branco]
+
+chakras:
+  - id: chakra-raiz
+    names: [chakra raiz, chakra básico, chakra basico, muladhara]
+    brief: "Na mapa moderna dos chakras, a raiz é chão, sobrevivência e o vermelho."
+    text: "No mapa moderno dos chakras, de leitura indiana reelaborada no esoterismo, a raiz fica na base do corpo: chão, sobrevivência e a cor vermelha. É tradição contemporânea, não uma ciência nem um ensinamento indígena."
+    related: [vermelho]
+
+  - id: chakra-sacral
+    names: [chakra sacral, segundo chakra, svadhisthana]
+    brief: "No mapa dos chakras, o sacral é criatividade, desejo e o laranja."
+    text: "No mapa moderno dos chakras, o sacral é criatividade, desejo e a água do corpo, na cor laranja. Fala-se dele como tradição esotérica, sem promessa sobre a vida íntima de ninguém."
+    related: [laranja]
+
+  - id: chakra-plexo
+    names: [plexo solar, chakra do plexo, manipura]
+    brief: "No mapa dos chakras, o plexo solar é vontade, estima e o amarelo."
+    text: "No mapa moderno dos chakras, o plexo solar é vontade e estima, na cor amarela. Costuma-se associá-lo à coragem de agir, não a um diagnóstico."
+    related: [amarelo]
+
+  - id: chakra-cardiaco
+    names: [chakra cardíaco, chakra cardiaco, chakra do coração, anahata]
+    brief: "No mapa dos chakras, o cardíaco é afeto, equilíbrio e o verde."
+    text: "No mapa moderno dos chakras, o cardíaco é afeto e equilíbrio, na cor verde, às vezes rosa. É a leitura esotérica do meio do peito, não uma afirmação sobre a saúde."
+    related: [verde, rosa]
+
+  - id: chakra-laringeo
+    names: [chakra laríngeo, chakra laringeo, chakra da garganta, vishuddha]
+    brief: "No mapa dos chakras, o laríngeo é fala verdadeira e o azul."
+    text: "No mapa moderno dos chakras, o laríngeo é a fala verdadeira, na cor azul. Costuma-se invocá-lo quando a peça guarda um recado."
+    related: [azul]
+
+  - id: chakra-terceiro-olho
+    names: [terceiro olho, chakra frontal, ajna]
+    brief: "No mapa dos chakras, o terceiro olho é intuição, visão interior e o anil."
+    text: "No mapa moderno dos chakras, o terceiro olho é intuição e visão interior, na cor anil. Não se apresenta como poder de prever; é um modo tradicional de nomear o olhar para dentro."
+    related: [anil]
+
+  - id: chakra-coronario
+    names: [chakra coronário, chakra coronario, chakra da coroa, sahasrara]
+    brief: "No mapa dos chakras, o coronário é ligação com o alto e o violeta."
+    text: "No mapa moderno dos chakras, o coronário é a ligação com o que está acima da pessoa, na cor violeta ou branca. É linguagem esotérica de recolhimento, não uma hierarquia sobre a fé dela."
+    related: [violeta]
+
+signs:
+  - id: aries
+    names: [áries, aries]
+    brief: "Na astrologia, Áries é começo, coragem e fogo; a cornalina e o vermelho costumam acompanhá-lo."
+    text: "Na astrologia tradicional, Áries é o começo e a coragem, signo de fogo regido por Marte. Costuma-se associá-lo ao vermelho e à cornalina. É linguagem do mapa, não um destino."
+    related: [cornalina, vermelho, marte]
+
+  - id: touro
+    names: [touro]
+    brief: "Na astrologia, Touro é terra, sentido e constância; o rosa e o verde costumam acompanhá-lo."
+    text: "Na astrologia tradicional, Touro é terra, sentido e constância, regido por Vênus. Costuma-se associá-lo ao verde, ao rosa e ao quartzo rosa."
+    related: [quartzo-rosa, verde, venus]
+
+  - id: gemeos
+    names: [gêmeos, gemeos]
+    brief: "Na astrologia, Gêmeos é ar, troca e curiosidade; a ágata costuma acompanhá-lo."
+    text: "Na astrologia tradicional, Gêmeos é ar, troca e curiosidade, regido por Mercúrio. Costuma-se associá-lo ao amarelo claro e à ágata."
+    related: [agata, amarelo, mercurio]
+
+  - id: cancer
+    names: [câncer, cancer]
+    brief: "Na astrologia, Câncer é água, casa e cuidado; a selenita e o branco costumam acompanhá-lo."
+    text: "Na astrologia tradicional, Câncer é água, casa e cuidado, regido pela Lua. Costuma-se associá-lo ao branco, ao prateado e à selenita."
+    related: [selenita, branco, lua]
+
+  - id: leao
+    names: [leão, leao]
+    brief: "Na astrologia, Leão é sol, coração e presença; o citrino e o dourado costumam acompanhá-lo."
+    text: "Na astrologia tradicional, Leão é sol, coração e presença. Costuma-se associá-lo ao dourado, ao amarelo e ao citrino."
+    related: [citrino, dourado, sol]
+
+  - id: virgem
+    names: [virgem]
+    brief: "Na astrologia, Virgem é terra, cuidado miúdo e discernimento; o jaspe costuma acompanhá-la."
+    text: "Na astrologia tradicional, Virgem é terra, cuidado miúdo e discernimento, regida por Mercúrio. Costuma-se associá-la ao verde-terra e ao jaspe."
+    related: [jaspe, verde, mercurio]
+
+  - id: libra
+    names: [libra]
+    brief: "Na astrologia, Libra é ar, equilíbrio e parceria; o rosa costuma acompanhá-la."
+    text: "Na astrologia tradicional, Libra é ar, equilíbrio e parceria, regida por Vênus. Costuma-se associá-la ao rosa e ao quartzo rosa."
+    related: [quartzo-rosa, rosa, venus]
+
+  - id: escorpiao
+    names: [escorpião, escorpiao]
+    brief: "Na astrologia, Escorpião é água funda e transformação; a obsidiana costuma acompanhá-lo."
+    text: "Na astrologia tradicional, Escorpião é água funda e transformação. Costuma-se associá-lo ao preto, ao bordô e à obsidiana."
+    related: [obsidiana, preto]
+
+  - id: sagitario
+    names: [sagitário, sagitario]
+    brief: "Na astrologia, Sagitário é fogo, busca e horizonte; a turquesa costuma acompanhá-lo."
+    text: "Na astrologia tradicional, Sagitário é fogo, busca e horizonte, regido por Júpiter. Costuma-se associá-lo ao azul e à turquesa."
+    related: [turquesa, azul]
+
+  - id: capricornio
+    names: [capricórnio, capricornio]
+    brief: "Na astrologia, Capricórnio é terra, estrutura e tempo longo; a hematita costuma acompanhá-lo."
+    text: "Na astrologia tradicional, Capricórnio é terra, estrutura e tempo longo, regido por Saturno. Costuma-se associá-lo ao marrom, ao preto e à hematita."
+    related: [hematita, marrom, saturno]
+
+  - id: aquario
+    names: [aquário, aquario]
+    brief: "Na astrologia, Aquário é ar, futuro e comunidade; a ametista costuma acompanhá-lo."
+    text: "Na astrologia tradicional, Aquário é ar, futuro e comunidade. Costuma-se associá-lo ao anil, ao violeta e à ametista."
+    related: [ametista, anil]
+
+  - id: peixes
+    names: [peixes]
+    brief: "Na astrologia, Peixes é água, sonho e compaixão; a ametista costuma acompanhá-lo."
+    text: "Na astrologia tradicional, Peixes é água, sonho e compaixão. Costuma-se associá-lo ao lilás, ao verde-água e à ametista."
+    related: [ametista, violeta, agua]
+
+planets:
+  - id: sol
+    names: [sol]
+    brief: "Na astrologia, o Sol é centro, vitalidade e ouro."
+    text: "Na astrologia, o Sol é centro e vitalidade: ouro, amarelo e a vontade de aparecer sem se perder. É símbolo, não um horóscopo da pessoa, a menos que ela tenha falado do mapa."
+    related: [dourado, amarelo, citrino]
+
+  - id: lua
+    names: [lua]
+    brief: "Na astrologia, a Lua é maré, cuidado e prata."
+    text: "Na astrologia, a Lua é maré e cuidado: prata, branco e o que muda de fase. Costuma-se associá-la à selenita."
+    related: [prateado, branco, selenita]
+
+  - id: mercurio
+    names: [mercúrio, mercurio]
+    brief: "Na astrologia, Mercúrio é fala, troca e caminho."
+    text: "Na astrologia, Mercúrio é fala, troca e caminho. Costuma-se associá-lo ao amarelo e à ágata."
+    related: [amarelo, agata]
+
+  - id: venus
+    names: [vênus, venus]
+    brief: "Na astrologia, Vênus é afeto, beleza e acordo."
+    text: "Na astrologia, Vênus é afeto, beleza e acordo. Costuma-se associá-la ao rosa, ao verde e ao quartzo rosa."
+    related: [rosa, quartzo-rosa]
+
+  - id: marte
+    names: [marte]
+    brief: "Na astrologia, Marte é corte, coragem e ação."
+    text: "Na astrologia, Marte é corte e coragem: ação, vermelho e a cornalina. Não é violência prometida."
+    related: [vermelho, cornalina]
+
+  - id: jupiter
+    names: [júpiter, jupiter]
+    brief: "Na astrologia, Júpiter é expansão, fé e abundância."
+    text: "Na astrologia, Júpiter é expansão e fé: abundância, azul-real e a turquesa. É crescimento, não garantia de riqueza."
+    related: [turquesa, abundancia]
+
+  - id: saturno
+    names: [saturno]
+    brief: "Na astrologia, Saturno é limite, tempo e estrutura."
+    text: "Na astrologia, Saturno é limite e tempo: estrutura, preto, marrom e a hematita. Não se usa o nome dele como castigo."
+    related: [hematita, preto]
+
+  - id: urano
+    names: [urano]
+    brief: "Na astrologia, Urano é ruptura, futuro e o inesperado lúcido."
+    text: "Na astrologia moderna, Urano é ruptura lúcida e futuro. Costuma-se associá-lo ao anil e à ametista."
+    related: [ametista, anil]
+
+  - id: netuno
+    names: [netuno]
+    brief: "Na astrologia, Netuno é sonho, dissolução e mar."
+    text: "Na astrologia moderna, Netuno é sonho, dissolução e mar. Costuma-se associá-lo ao verde-água e ao lilás, com a ressalva de não confundir sonho com fato."
+    related: [violeta, agua]
+
+  - id: plutao
+    names: [plutão, plutao]
+    brief: "Na astrologia, Plutão é transformação funda e o que renasce."
+    text: "Na astrologia moderna, Plutão é transformação funda: o que morre de uma forma e segue noutra. Costuma-se associá-lo ao preto e à obsidiana."
+    related: [obsidiana, preto]
+
+intentions:
+  - id: protecao
+    names: [proteção, protecao, proteger, protetora, protetor]
+    brief: "Proteção, na tradição da oficina, é margem, guarda e o que não deixa a pessoa exposta."
+    text: "Quando ela pede proteção, a tradição da oficina entende margem e guarda: o que firma a pessoa e escoa o excesso, sem prometer invulnerabilidade. Turmalina negra, hematita, pena preta e búzio costumam acompanhar esse pedido se estiverem na peça."
+
+  - id: cura
+    names: [cura, curar, cura energética]
+    brief: "Cura, aqui, é recomposição e alívio, não promessa clínica."
+    text: "Quando ela fala em cura, o texto trata de recomposição e alívio na tradição energética, nunca de tratamento médico. O verde e as pedras calmas podem acompanhar, se estiverem na peça, como símbolo e não como remédio."
+    related: [verde]
+
+  - id: abundancia
+    names: [abundância, abundancia, prosperidade, prosperar]
+    brief: "Abundância, na tradição, é fluxo, confiança e o pão que circula."
+    text: "Quando ela fala em abundância ou prosperidade, a tradição lê fluxo e confiança: o que circula, não o que se acumula com medo. Citrino, pirita e o dourado costumam nomear esse pedido se aparecerem na peça."
+    related: [citrino, dourado]
+
+  - id: amor
+    names: [amor]
+    brief: "Amor, na tradição da peça, é afeto, acordo e presença, no sentido que ela deu."
+    text: "O amor entra como ela o definiu. A tradição só completa: quartzo rosa, rosa e o centro do peito costumam nomear o afeto gentil, sem inventar uma história de casal que ela não contou."
+    related: [quartzo-rosa, rosa]
+
+  - id: limpeza
+    names: [limpeza energética, limpeza, descarrego]
+    brief: "Limpeza energética, na tradição, é escoar o excesso e arejar, não expulsar uma pessoa."
+    text: "Quando ela fala em limpeza energética, a tradição entende escoar o excesso e arejar o corpo e a casa. Selenita, quartzo cristal, branco e água costumam acompanhar esse gesto se estiverem na peça. Não se transforma isso em ataque a alguém."
+    related: [selenita, branco, agua]
+
+glossary:
+  - term: abanilho
+    mishearings: [abanilio, abanílio, abanilyo, abanilo, abaniliu, abanillo, habanilho, a banilho]
+    text: "Leque ritual de penas, menor e mais fechado que o abano, usado para abanar fumaça, corpo e ambiente."
+
+  - term: abano
+    mishearings: [habano, abanno, abanoo, a bano]
+    text: "Leque ritual maior, em geral de penas, usado para mover a fumaça, o ar e o axé em volta da peça ou da pessoa. Não confundir com ábano, que é madeira."
+
+  - term: cocar
+    mishearings: [cocár, coquar, kokar]
+    text: "Adorno de penas para a cabeça. Não é um abano nem um abanilho."
+
+  - term: maracá
+    mishearings: [maraca, maraka]
+    text: "Chocalho ritual, muitas vezes de cabaça. Só use a palavra se ela a disser ou se o objeto estiver visível."
+
+  - term: búzio
+    mishearings: [buzio, busio]
+    text: "Concha pequena. No plural, búzios."
+
+  - term: búzios
+    mishearings: [buzios, busios]
+    text: "Conchas pequenas usadas como contas e, nas casas de matriz africana, como oráculo."
