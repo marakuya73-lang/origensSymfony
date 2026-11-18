@@ -62,10 +62,25 @@ No servidor, o caminho seguro é a pasta irmã do projeto, fora de `public_html`
 
 `bin/origens-pull` copia o banco para lá, grava o caminho em `.env.local`, faz um backup com data antes do `git pull` (guarda os 10 últimos e para se o backup falhar), liga `public/uploads` a essa pasta e só então migra. Não use `git clean`.
 
+No hPanel da Hostinger, em **Git**, desligue o deploy automático. Um push não pode publicar sozinho: o clone novo apaga o que não está no git, inclusive o banco e as fotos. Quem publica é só este comando, à mão:
+
 ```bash
 cd /home/u505516867/domains/origens.art.br/public_html
 PHP_BIN=/opt/alt/php84/usr/bin/php ./bin/origens-pull
+/opt/alt/php84/usr/bin/php bin/console origens:check --env=prod
 ```
+
+`origens:check` mostra o arquivo do banco, se ele aceita gravação, quantas peças existem, a pasta das fotos e o último backup. O caminho tem de terminar em `origens-data/origens.sqlite`.
+
+Um backup diário, além do que o deploy já faz:
+
+```bash
+15 4 * * * cd /home/u505516867/domains/origens.art.br/public_html && ./bin/origens-backup
+```
+
+O link público `/p/<token>` nasce uma vez, na criação, com 32 caracteres aleatórios guardados na peça. Editar, gerar de novo com a IA ou fazer deploy não troca esse token, e ele não volta a ser usado.
+
+Se a gravação não for confirmada numa leitura nova do banco, o formulário mostra erro e não diz que salvou.
 
 Os logs de produção vão para a saída de erro do PHP (`php://stderr`), não para `var/log/prod.log`.
 

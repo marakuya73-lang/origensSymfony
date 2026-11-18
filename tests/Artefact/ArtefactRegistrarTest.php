@@ -7,10 +7,12 @@ namespace App\Tests\Artefact;
 use App\Artefact\ArtefactData;
 use App\Artefact\ArtefactRegistrar;
 use App\Artefact\ArtefactRules;
+use App\Command\OrigensCheckCommand;
 use App\Entity\Artefact;
 use App\Tests\SchemaBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Console\Tester\CommandTester;
 
 final class ArtefactRegistrarTest extends KernelTestCase
 {
@@ -40,14 +42,21 @@ final class ArtefactRegistrarTest extends KernelTestCase
         $code = $first->getCode();
         $token = $first->getPublicToken();
         $createdAt = $first->getCreatedAt();
-        $registrar->update($first, $this->data('Primeira revista', 'P', 2));
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $managed = $em->find(Artefact::class, $first->getId());
+        self::assertInstanceOf(Artefact::class, $managed);
+        $registrar->update($managed, $this->data('Primeira revista', 'P', 2));
+        $em->clear();
+        $updated = $em->find(Artefact::class, $first->getId());
 
-        self::assertSame('Primeira revista', $first->getTitle());
-        self::assertSame('M', $first->getSize());
-        self::assertSame(1, $first->getCategory());
-        self::assertSame($code, $first->getCode());
-        self::assertSame($token, $first->getPublicToken());
-        self::assertEquals($createdAt, $first->getCreatedAt());
+        self::assertInstanceOf(Artefact::class, $updated);
+        self::assertSame('Primeira revista', $updated->getTitle());
+        self::assertSame('M', $updated->getSize());
+        self::assertSame(1, $updated->getCategory());
+        self::assertSame($code, $updated->getCode());
+        self::assertSame($token, $updated->getPublicToken());
+        self::assertEquals($createdAt, $updated->getCreatedAt());
     }
 
     public function testDoesNotTruncateTheCounterAfter999(): void
@@ -78,6 +87,48 @@ final class ArtefactRegistrarTest extends KernelTestCase
         self::assertInstanceOf(Artefact::class, $again);
         self::assertSame('Peça que fica', $again->getTitle());
         self::assertSame($created->getCode(), $again->getCode());
+    }
+
+    public function testEditingKeepsTheSamePublicLink(): void
+    {
+        $registrar = $this->registrar();
+        $created = $registrar->create($this->data('Primeira', 'M', 1));
+        $token = $created->getPublicToken();
+        self::assertSame(1, preg_match('/^[a-f0-9]{32}$/', $token));
+
+        $registrar->update($created, $this->data('Primeira revista', 'P', 2));
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->clear();
+        $again = $em->getRepository(Artefact::class)->find($created->getId());
+
+        self::assertInstanceOf(Artefact::class, $again);
+        self::assertSame($token, $again->getPublicToken());
+        self::assertSame('Primeira revista', $again->getTitle());
+        self::assertNotSame($token, $registrar->create($this->data('Outra', 'M', 1))->getPublicToken());
+    }
+
+    public function testAStoredLinkCannotBeReplaced(): void
+    {
+        $created = $this->registrar()->create($this->data('Primeira', 'M', 1));
+
+        $this->expectException(\LogicException::class);
+        $created->setPublicToken(str_repeat('b', 32));
+    }
+
+    public function testCheckNamesTheDatabase(): void
+    {
+        $command = static::getContainer()->get(OrigensCheckCommand::class);
+        self::assertInstanceOf(OrigensCheckCommand::class, $command);
+        $tester = new CommandTester($command);
+
+        self::assertSame(0, $tester->execute([]));
+        $display = $tester->getDisplay();
+        self::assertStringContainsString('database:', $display);
+        self::assertStringContainsString('writable: yes', $display);
+        self::assertStringContainsString('artefacts:', $display);
+        self::assertStringContainsString('uploads:', $display);
+        self::assertStringContainsString('last_backup:', $display);
     }
 
     private function registrar(): ArtefactRegistrar

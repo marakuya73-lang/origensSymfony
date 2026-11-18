@@ -4,80 +4,15 @@
 # and a fresh clone cannot delete them. A timestamped backup is taken
 # before git pull. If that backup fails, the script stops.
 #
+# Disable Hostinger's automatic Git deploy. Publish only with this script:
 #   PHP_BIN=/opt/alt/php84/usr/bin/php ./bin/origens-pull
 #
 # Optional:
 #   ORIGENS_DATA_ROOT=/home/USER/domains/origens.art.br/origens-data
 
 set -euo pipefail
-
-PROJECT=$(cd "$(dirname "$0")/.." && pwd)
-PHP_BIN=${PHP_BIN:-php}
-DATA_ROOT=${ORIGENS_DATA_ROOT:-"$(dirname "$PROJECT")/origens-data"}
-DATA_ROOT=$(cd "$(dirname "$DATA_ROOT")" && pwd)/$(basename "$DATA_ROOT")
-
-case "$DATA_ROOT/" in
-    "$PROJECT/"*)
-        echo "origens-pull: ORIGENS_DATA_ROOT must be outside the project ($PROJECT)." >&2
-        exit 1
-        ;;
-esac
-
-mkdir -p "$DATA_ROOT/backups" "$DATA_ROOT/uploads/artefacts"
-
-db_from_url() {
-    local url=$1
-    case "$url" in
-        sqlite:////*)
-            printf '/%s\n' "${url#sqlite:////}"
-            ;;
-        sqlite:///*)
-            printf '%s/%s\n' "$PROJECT" "${url#sqlite:///}"
-            ;;
-        *)
-            echo "origens-pull: unsupported DATABASE_URL ($url)." >&2
-            exit 1
-            ;;
-    esac
-}
-
-current_db() {
-    local line url
-    line=$(grep -E '^DATABASE_URL=' "$PROJECT/.env.local" 2>/dev/null | tail -1 || true)
-    if [ -n "$line" ]; then
-        url=${line#DATABASE_URL=}
-        url=${url#\"}
-        url=${url%\"}
-        db_from_url "$url"
-        return
-    fi
-    printf '%s\n' "$PROJECT/var/data_prod.db"
-}
-
-backup_db() {
-    local source=$1
-    local stamp backup
-    if [ ! -f "$source" ]; then
-        echo "origens-pull: no database at $source yet; nothing to back up."
-        return 0
-    fi
-    stamp=$(date -u +%Y%m%dT%H%M%SZ)
-    backup="$DATA_ROOT/backups/origens-$stamp.sqlite"
-    if command -v sqlite3 >/dev/null 2>&1; then
-        sqlite3 "$source" ".backup '$backup'"
-    else
-        cp -a "$source" "$backup"
-    fi
-    if [ ! -s "$backup" ]; then
-        echo "origens-pull: backup failed ($backup). Deploy aborted; the database was not touched." >&2
-        exit 1
-    fi
-    echo "origens-pull: backup $backup"
-    mapfile -t old < <(ls -1t "$DATA_ROOT/backups"/origens-*.sqlite 2>/dev/null || true)
-    if [ "${#old[@]}" -gt 10 ]; then
-        rm -f "${old[@]:10}"
-    fi
-}
+# shellcheck disable=SC1091
+source "$(dirname "$0")/origens-lib.sh"
 
 ensure_env() {
     local file=$PROJECT/.env.local
@@ -123,8 +58,13 @@ link_uploads() {
     ln -sfn "$target" "$link"
 }
 
-LIVE=$(current_db)
-backup_db "$LIVE"
+"$PROJECT/bin/origens-backup" || {
+    LIVE=$(current_db)
+    if [ -f "$LIVE" ]; then
+        exit 1
+    fi
+    echo "origens-pull: no database yet; continuing with an empty archive."
+}
 
 git -C "$PROJECT" pull --ff-only
 
@@ -136,6 +76,7 @@ link_uploads
 "$PHP_BIN" "$PROJECT/bin/console" doctrine:migrations:migrate --no-interaction --env=prod
 "$PHP_BIN" "$PROJECT/bin/console" asset-map:compile --env=prod
 "$PHP_BIN" "$PROJECT/bin/console" cache:clear --env=prod
+"$PHP_BIN" "$PROJECT/bin/console" origens:check --env=prod
 
 echo "origens-pull: database $(current_db)"
 echo "origens-pull: uploads $DATA_ROOT/uploads"

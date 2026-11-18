@@ -51,16 +51,19 @@ final class MigrationPreservesRowsTest extends TestCase
 
     public function testTheDeployScriptBacksUpTheDatabaseBeforePulling(): void
     {
-        $script = (string) file_get_contents(dirname(__DIR__, 2).'/bin/origens-pull');
-        $backup = strpos($script, 'backup_db "$LIVE"');
+        $root = dirname(__DIR__, 2);
+        $script = (string) file_get_contents($root.'/bin/origens-pull');
+        $backup = (string) file_get_contents($root.'/bin/origens-backup');
         $pull = strpos($script, 'git -C "$PROJECT" pull --ff-only');
+        $call = strpos($script, '"$PROJECT/bin/origens-backup"');
 
-        self::assertNotFalse($backup);
+        self::assertNotFalse($call);
         self::assertNotFalse($pull);
-        self::assertLessThan($pull, $backup);
-        self::assertStringContainsString('Deploy aborted', $script);
-        self::assertStringContainsString('must be outside the project', $script);
-        self::assertStringContainsString('-gt 10', $script);
+        self::assertLessThan($pull, $call);
+        self::assertStringContainsString('backup_db "$LIVE"', $backup);
+        self::assertStringContainsString('database not found', $backup);
+        self::assertStringContainsString('must be outside the project', (string) file_get_contents($root.'/bin/origens-lib.sh'));
+        self::assertStringContainsString('-gt 10', (string) file_get_contents($root.'/bin/origens-lib.sh'));
         self::assertStringContainsString('public/uploads', $script);
     }
 

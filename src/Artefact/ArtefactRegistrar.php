@@ -36,15 +36,20 @@ final class ArtefactRegistrar
             throw new InvalidArtefact('Não foi possível salvar a peça. Nenhum código existente foi alterado.');
         }
 
-        return $artefact;
+        return $this->stored($artefact);
     }
 
     /** @return list<string> Image paths removed from the record */
     public function update(Artefact $artefact, ArtefactData $data): array
     {
+        $token = $artefact->getPublicToken();
         $removed = array_values(array_diff($artefact->getImages(), $data->images));
         $artefact->apply($data);
+        if ($artefact->getPublicToken() !== $token || $token === '') {
+            throw new InvalidArtefact('O link público da peça não pode mudar.');
+        }
         $this->em->flush();
+        $this->stored($artefact);
 
         return $removed;
     }
@@ -81,5 +86,20 @@ final class ArtefactRegistrar
         }
 
         throw new \RuntimeException('Could not allocate a public token.');
+    }
+
+    private function stored(Artefact $artefact): Artefact
+    {
+        $id = $artefact->getId();
+        $token = $artefact->getPublicToken();
+        $title = $artefact->getTitle();
+        $this->em->clear();
+        $this->em->getConnection()->close();
+        $stored = $this->artefacts->find($id);
+        if (!$stored instanceof Artefact || $stored->getPublicToken() !== $token || $stored->getTitle() !== $title || $token === '') {
+            throw new InvalidArtefact('Não foi possível gravar a peça. O arquivo não confirmou a gravação.');
+        }
+
+        return $stored;
     }
 }
