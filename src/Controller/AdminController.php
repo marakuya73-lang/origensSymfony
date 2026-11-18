@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Artefact\ArchiveSnapshot;
 use App\Artefact\ArtefactDraft;
 use App\Artefact\ArtefactRegistrar;
 use App\Artefact\ArtefactRules;
@@ -21,11 +22,13 @@ use App\Entity\Artefact;
 use App\Repository\ArtefactRepository;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Attribute\Route;
 
 final class AdminController extends AbstractController
@@ -38,6 +41,7 @@ final class AdminController extends AbstractController
         private GeminiProfileGenerator $profiles,
         private SellerTable $sheet,
         private TabularFile $files,
+        private ArchiveSnapshot $snapshots,
     ) {
     }
 
@@ -101,6 +105,21 @@ final class AdminController extends AbstractController
             'complete' => $turn->complete,
             'changed' => $turn->changed,
         ]);
+    }
+
+    #[Route('/admin/records/backup', name: 'admin_artefact_backup', methods: ['GET'])]
+    public function backup(): BinaryFileResponse
+    {
+        $path = $this->snapshots->temporaryDownload();
+        $this->snapshots->markDownloaded();
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(
+            ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+            $this->snapshots->downloadName(new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo'))),
+        );
+        $response->deleteFileAfterSend(true);
+
+        return $response;
     }
 
     #[Route('/admin/records/export', name: 'admin_artefact_export', methods: ['POST'])]
@@ -321,6 +340,7 @@ final class AdminController extends AbstractController
         return $this->admin('admin/records.html.twig', [
             'rows' => $rows,
             'exportError' => $exportError,
+            'backup' => $this->snapshots->status(),
         ], $status);
     }
 
