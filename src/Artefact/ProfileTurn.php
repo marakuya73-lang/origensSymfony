@@ -7,7 +7,7 @@ namespace App\Artefact;
 final readonly class ProfileTurn
 {
     /** @var list<string> */
-    public const FIELDS = ['title', 'description', 'dimensions', 'materials', 'care', 'handmade', 'size'];
+    public const FIELDS = ['title', 'description', 'symbolism', 'dimensions', 'materials', 'care', 'handmade', 'size'];
 
     /**
      * @param list<string> $questions
@@ -91,6 +91,8 @@ final readonly class ProfileTurn
         'título' => 'title',
         'descricao' => 'description',
         'descrição' => 'description',
+        'simbologia' => 'symbolism',
+        'symbolism' => 'symbolism',
         'dimensao' => 'dimensions',
         'dimensão' => 'dimensions',
         'material' => 'materials',

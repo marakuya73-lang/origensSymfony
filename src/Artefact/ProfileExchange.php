@@ -47,6 +47,7 @@ final class ProfileExchange
         return [
             'title' => self::text($decoded['title'] ?? '', 180),
             'description' => self::text($decoded['description'] ?? '', ArtefactRules::DESCRIPTION_MAX),
+            'symbolism' => self::text($decoded['symbolism'] ?? '', ArtefactRules::DESCRIPTION_MAX),
             'dimensions' => self::text($decoded['dimensions'] ?? '', 100),
             'materials' => self::materials($decoded['materials'] ?? []),
             'care' => self::care($decoded['care'] ?? []),
@@ -92,6 +93,7 @@ final class ProfileExchange
             $keep('care') && $form['care'] !== [] ? $form['care'] : $suggested->care,
             $keep('handmade') && $form['handmade'] !== '' ? $form['handmade'] : $suggested->handmade,
             $keep('size') && $form['size'] !== '' ? $form['size'] : $suggested->size,
+            $keep('symbolism') ? $form['symbolism'] : ($suggested->symbolism !== '' ? $suggested->symbolism : $form['symbolism']),
         );
     }
 

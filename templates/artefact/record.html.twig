@@ -50,13 +50,9 @@
                         </div>
                     </dl>
 
-                    <p class="nfc">
-                        <svg class="icon icon-nfc" viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="3.5" y="3.5" width="17" height="17"></rect>
-                            <path d="M9 8.5c1.6 2.2 1.6 4.8 0 7M12 7c2.4 3 2.4 7 0 10M15 5.5c3.2 4 3.2 9 0 13"></path>
-                        </svg>
-                        <span class="nfc-url">{{ a.displayUrl }}</span>
-                    </p>
+                    {% if a.symbolism %}
+                        <p class="symbolism">{{ a.symbolism|nl2br }}</p>
+                    {% endif %}
                 </div>
             </div>
 

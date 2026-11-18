@@ -87,7 +87,7 @@ final class AdminController extends AbstractController
         }
 
         try {
-            $turn = $this->profiles->suggest($image, $mime, $audioBytes, $audioMime, $notes, $answer, $history, $form, $touched);
+            $turn = $this->profiles->suggest($image, $mime, $audioBytes, $audioMime, $notes, $answer, $history, $form, $touched, $this->artefacts->recentTitles());
         } catch (ProfileGenerationFailed $exception) {
             return $this->json(['ok' => false, 'error' => $exception->getMessage()], $exception->status());
         }

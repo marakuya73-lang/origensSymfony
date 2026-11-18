@@ -189,6 +189,9 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertStringNotContainsString('venda', $lower);
         self::assertStringNotContainsString('sale_price', $lower);
         self::assertStringNotContainsString('salepricecents', $lower);
+        self::assertStringNotContainsString('class="nfc"', $html);
+        self::assertStringNotContainsString('nfc-url', $html);
+        self::assertStringNotContainsString('class="symbolism"', $html);
 
         $client->request('GET', '/admin/records');
         self::assertStringContainsString('R$ 987,65', (string) $client->getResponse()->getContent());
@@ -196,6 +199,42 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertIsString($edit);
         $client->request('GET', $edit);
         self::assertSame('987,65', $client->getCrawler()->filter('input[name="sale_price"]')->attr('value'));
+    }
+
+    public function testPublicPageShowsTheSymbolicMessageOnlyWhenItIsFilled(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => 'Garoa',
+            'size' => 'P',
+            'category' => '1',
+            'description' => 'Uma peça de teste.',
+            'symbolism' => 'Chuva fina e pena clara firmam quem está de passagem.',
+            'dimensions' => '12 cm',
+            'materials' => [['name' => 'Pena', 'note' => 'Clara.']],
+            'care' => 'Guardar seco.',
+            'handmade' => 'Feito à mão com calma.',
+            'record_date' => '2026-10-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+
+        self::assertResponseRedirects('/admin/records/saved');
+        $client->followRedirect();
+        $path = parse_url(trim($client->getCrawler()->filter('.saved-url')->text()), PHP_URL_PATH);
+        self::assertIsString($path);
+
+        $client->request('GET', $path);
+        $html = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('class="symbolism"', $html);
+        self::assertStringContainsString('Chuva fina e pena clara firmam quem está de passagem.', $html);
+        self::assertStringNotContainsString('class="nfc"', $html);
+        self::assertStringNotContainsString('987', $html);
     }
 
     private function browser(): KernelBrowser

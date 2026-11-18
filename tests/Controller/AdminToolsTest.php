@@ -35,17 +35,15 @@ final class AdminToolsTest extends WebTestCase
         $this->key('test-key');
         $client = $this->ownerClient();
         $client->disableReboot();
-        $client->getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator(new MockHttpClient([
-            $this->gemini([
-                'title' => 'Abano de palha',
-                'description' => 'Peça leve, com palha trançada.',
-                'dimensions' => 'aproximadamente 30 cm',
-                'materials' => [['name' => 'Palha', 'note' => 'Clara.']],
-                'care' => ['Manusear com cuidado.'],
-                'handmade' => 'O trançado começa pela borda.',
-                'size' => 'M',
-            ]),
-        ]), 'test-key', 'gemini-3.8-flash'));
+        $client->getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator(new MockHttpClient(fn () => $this->gemini([
+            'title' => 'Abano de palha',
+            'description' => 'Peça leve, com palha trançada.',
+            'dimensions' => 'aproximadamente 30 cm',
+            'materials' => [['name' => 'Palha', 'note' => 'Clara.']],
+            'care' => ['Manusear com cuidado.'],
+            'handmade' => 'O trançado começa pela borda.',
+            'size' => 'M',
+        ])), 'test-key', 'gemini-3.8-flash'));
 
         $client->request('POST', '/admin/records/images', ['_token' => $this->token($client, '/admin/records/new')], ['image' => $this->jpeg()]);
         self::assertResponseIsSuccessful();
@@ -77,20 +75,18 @@ final class AdminToolsTest extends WebTestCase
         $this->key('test-key');
         $client = $this->ownerClient();
         $client->disableReboot();
-        $client->getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator(new MockHttpClient([
-            $this->gemini([
-                'title' => 'Nome da IA',
-                'description' => 'Peça leve.',
-                'dimensions' => 'aproximadamente 18 cm',
-                'materials' => [['name' => 'Palha', 'note' => '']],
-                'care' => ['Guardar seco.'],
-                'handmade' => 'Feito à mão.',
-                'size' => 'P',
-                'questions' => ['Qual o cuidado com a água?'],
-                'complete' => false,
-                'changed' => [],
-            ]),
-        ]), 'test-key', 'gemini-3.8-flash'));
+        $client->getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator(new MockHttpClient(fn () => $this->gemini([
+            'title' => 'Nome da IA',
+            'description' => 'Peça leve.',
+            'dimensions' => 'aproximadamente 18 cm',
+            'materials' => [['name' => 'Palha', 'note' => '']],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito à mão.',
+            'size' => 'P',
+            'questions' => ['Qual o cuidado com a água?'],
+            'complete' => false,
+            'changed' => [],
+        ])), 'test-key', 'gemini-3.8-flash'));
 
         $client->request('POST', '/admin/records/images', ['_token' => $this->token($client, '/admin/records/new')], ['image' => $this->jpeg()]);
         $uploaded = json_decode((string) $client->getResponse()->getContent(), true);

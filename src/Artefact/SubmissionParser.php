@@ -47,6 +47,7 @@ final class SubmissionParser
                 $paths,
                 $request->request->getString('record_date'),
                 $salePriceCents,
+                $request->request->getString('symbolism'),
             );
 
             return new Submission(
@@ -64,6 +65,7 @@ final class SubmissionParser
                     $this->images,
                     $current,
                     SalePrice::input($data->salePriceCents),
+                    $data->symbolism,
                 ),
                 $data,
                 null,
@@ -166,6 +168,7 @@ final class SubmissionParser
             $this->images,
             $current,
             $request->request->getString('sale_price'),
+            $request->request->getString('symbolism'),
         );
     }
 

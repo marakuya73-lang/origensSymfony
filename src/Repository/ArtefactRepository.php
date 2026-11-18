@@ -30,6 +30,31 @@ class ArtefactRepository extends ServiceEntityRepository
         return $rows;
     }
 
+    /** @return list<string> */
+    public function recentTitles(int $limit = 30): array
+    {
+        /** @var list<mixed> $titles */
+        $titles = $this->createQueryBuilder('a')
+            ->select('a.title')
+            ->orderBy('a.createdAt', 'DESC')
+            ->setMaxResults(max(1, min($limit, 30)))
+            ->getQuery()
+            ->getSingleColumnResult();
+
+        $clean = [];
+        foreach ($titles as $title) {
+            if (!is_string($title)) {
+                continue;
+            }
+            $title = trim($title);
+            if ($title !== '') {
+                $clean[] = $title;
+            }
+        }
+
+        return $clean;
+    }
+
     /**
      * @param list<mixed> $ids
      *

@@ -24,6 +24,7 @@ final class SymbolicTradition
         'signs' => 'signo',
         'planets' => 'planeta',
         'intentions' => 'intenção',
+        'creatures' => 'ave ou animal',
     ];
 
     /** Frases curtas destas listas viajam mesmo sem o nome no texto, para o áudio e a foto. */
@@ -37,6 +38,12 @@ final class SymbolicTradition
 
     /** @var list<array{term: string, text: string, mishearings: list<string>}> */
     private array $glossary = [];
+
+    /** @var list<string> */
+    private array $titleAvoid = [];
+
+    /** @var list<array{group: string, word: string, hint: string}> */
+    private array $titleBank = [];
 
     private bool $loaded = false;
 
@@ -115,7 +122,7 @@ final class SymbolicTradition
         foreach ($this->glossary as $term) {
             $lines[] = '- '.$term['term'].': '.$term['text'];
         }
-        $lines[] = 'Tradição para completar a fala dela. A fala dela prevalece: não a contradiga, não a resuma e não apague o que ela contou. Apresente o que segue como tradição, nunca como fato nem como ensinamento de um povo que ela não nomeou. Não invente um sentido que não esteja escrito aqui. Na nota de cada material, comece pelo que ela disse e complete com o sentido daquele material.';
+        $lines[] = 'Sentidos para tecer dentro da descrição, na mesma voz da história, como se o texto sempre os tivesse conhecido. Não os liste, não abra um bloco de significados e não escreva "segundo a tradição" a cada item. Não contradiga o que foi contado, não apague nada disso e não invente um sentido que não esteja escrito aqui. Não atribua o sentido a um povo que não foi nomeado. Nome, nota, dimensão e cuidados ficam factuais.';
 
         $shown = [];
         if ($selected !== []) {
@@ -147,6 +154,52 @@ final class SymbolicTradition
                 continue;
             }
             $lines[] = '- '.$entry['title'].' ('.$entry['label'].'): '.$entry['brief'];
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /** @param list<mixed> $recentTitles */
+    public function titleGuidance(array $recentTitles): string
+    {
+        $this->load();
+        $avoid = $this->titleAvoid !== [] ? implode(', ', $this->titleAvoid) : 'noite, lua, luar, sereno, sonho, místico, sagrado';
+        $lines = [
+            'Nome. Primeiro a peça: materiais, cores, propósito e história. O banco abaixo só abre o leque, não manda no nome.',
+            'Varie a forma de um nome para outro: uma palavra, duas palavras, uma frase breve, ou uma palavra tupi com o sentido ao lado. Não repita o mesmo molde.',
+            'Evite estas palavras, salvo se forem o centro da peça: '.$avoid.'.',
+            'Uma palavra tupi é um convite aberto, com o sentido escrito ao lado. Não finja um nome sagrado nem copie verso de poeta ou de canção.',
+        ];
+
+        $used = [];
+        foreach (array_slice($recentTitles, 0, 30) as $title) {
+            if (!is_string($title)) {
+                continue;
+            }
+            $title = trim($title);
+            if ($title === '' || isset($used[$title])) {
+                continue;
+            }
+            $used[$title] = true;
+        }
+        if ($used === []) {
+            $lines[] = 'Ainda não há nomes anteriores no arquivo.';
+        } else {
+            $lines[] = 'Não repita as palavras nem o jeito destes nomes já usados:';
+            foreach (array_keys($used) as $title) {
+                $lines[] = '- '.$title;
+            }
+        }
+
+        $groups = [];
+        foreach ($this->titleBank as $item) {
+            $groups[$item['group']][] = $item['word'].' ('.$item['hint'].')';
+        }
+        if ($groups !== []) {
+            $lines[] = 'Banco de imagens:';
+            foreach ($groups as $group => $items) {
+                $lines[] = $group.': '.implode('; ', $items).'.';
+            }
         }
 
         return implode("\n", $lines);
@@ -337,6 +390,31 @@ final class SymbolicTradition
                 'text' => trim($row['text']),
                 'mishearings' => $hearings,
             ];
+        }
+
+        $inspiration = $parsed['title_inspiration'] ?? null;
+        if (!is_array($inspiration)) {
+            return;
+        }
+        foreach ($inspiration['avoid'] ?? [] as $word) {
+            if (is_string($word) && trim($word) !== '') {
+                $this->titleAvoid[] = trim($word);
+            }
+        }
+        foreach ($inspiration['groups'] ?? [] as $group) {
+            if (!is_array($group) || !is_string($group['name'] ?? null)) {
+                continue;
+            }
+            foreach ($group['entries'] ?? [] as $entry) {
+                if (!is_array($entry) || !is_string($entry['word'] ?? null) || trim($entry['word']) === '') {
+                    continue;
+                }
+                $this->titleBank[] = [
+                    'group' => trim($group['name']),
+                    'word' => trim($entry['word']),
+                    'hint' => is_string($entry['hint'] ?? null) ? trim($entry['hint']) : '',
+                ];
+            }
         }
     }
 }

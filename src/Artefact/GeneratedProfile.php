@@ -18,6 +18,7 @@ final readonly class GeneratedProfile
         public array $care,
         public string $handmade,
         public string $size,
+        public string $symbolism = '',
     ) {
     }
 
@@ -40,6 +41,7 @@ final readonly class GeneratedProfile
             $care,
             self::text($payload['handmade'] ?? '', 5000) ?: ArtefactRules::PENDING,
             self::size($payload['size'] ?? ''),
+            self::text($payload['symbolism'] ?? '', ArtefactRules::DESCRIPTION_MAX),
         );
     }
 
@@ -54,6 +56,7 @@ final readonly class GeneratedProfile
             'care' => $this->care,
             'handmade' => $this->handmade,
             'size' => $this->size,
+            'symbolism' => $this->symbolism,
         ];
     }
 

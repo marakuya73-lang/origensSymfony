@@ -55,6 +55,19 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertStringContainsString('espiritual', $body['system_instruction']);
         self::assertStringContainsString('Três materiais ditos são três itens', $body['system_instruction']);
         self::assertStringContainsString('Nunca substitua uma descrição por uma versão mais curta', $body['system_instruction']);
+        self::assertStringContainsString('É proibido, no nome e na descrição: "como dito"', $body['system_instruction']);
+        self::assertStringContainsString('Teça cada material, cor, pedra e pena dentro da história', $body['system_instruction']);
+        self::assertStringContainsString('Uma narrativa contínua e fluida, como um poema em prosa', $body['system_instruction']);
+        self::assertStringContainsString('Sem títulos de seção, sem tópicos, sem blocos nomeados', $body['system_instruction']);
+        self::assertStringContainsString('Ruim:', $body['system_instruction']);
+        self::assertStringContainsString('Bom:', $body['system_instruction']);
+        self::assertStringContainsString('Proibido "ideal para", "indicado para"', $body['system_instruction']);
+        self::assertStringContainsString('caatinga', $body['input'][0]['text']);
+        self::assertStringContainsString('Ainda não há nomes anteriores', $body['input'][0]['text']);
+        self::assertStringContainsString('Não os transcreva', $body['input'][0]['text']);
+        self::assertStringContainsString('campo symbolism é obrigatório', $body['input'][0]['text']);
+        self::assertStringContainsString('Garoa na aroeira', $body['input'][0]['text']);
+        self::assertSame('image/jpeg', $body['input'][1]['mime_type']);
         self::assertStringNotContainsString('O nome é curto, não uma frase.', $body['system_instruction']);
         self::assertSame(16384, $body['generation_config']['max_output_tokens']);
         self::assertSame('low', $body['generation_config']['thinking_level']);
@@ -75,7 +88,7 @@ final class GeminiProfileGeneratorTest extends TestCase
         $story = 'Ela contou que a peça nasceu de um sonho à beira do rio. '
             .'A pedra guarda proteção, o cristal abre o caminho e o linho segura a intenção de cura. '
             .'Nada disso deve ser resumido.';
-        $client = new MockHttpClient([$this->completed([
+        $client = new MockHttpClient(fn () => $this->completed([
             'title' => 'Verso da margem',
             'description' => $story,
             'dimensions' => '',
@@ -83,7 +96,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             'care' => ['Guardar seco.'],
             'handmade' => 'Feito à mão.',
             'size' => 'M',
-        ])]);
+        ]));
 
         $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', 'audio-bytes', 'audio/mp4', 'Palha, cristal e linho.')->profile;
 
@@ -100,7 +113,7 @@ final class GeminiProfileGeneratorTest extends TestCase
 
     public function testSeparateMaterialRowsStaySeparate(): void
     {
-        $client = new MockHttpClient([$this->completed([
+        $client = new MockHttpClient(fn () => $this->completed([
             'title' => 'Verso da margem',
             'description' => 'A história permanece.',
             'dimensions' => '',
@@ -112,7 +125,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             'care' => ['Guardar seco.'],
             'handmade' => 'Feito à mão.',
             'size' => 'M',
-        ])]);
+        ]));
 
         $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
 
@@ -145,6 +158,84 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertStringNotContainsString('O citrino, quartzo que a tradição vê dourado', $captured['input'][0]['text']);
         self::assertSame('Abanilho', $profile->title);
         self::assertSame('O abano e a ametista.', $profile->description);
+    }
+
+    public function testRecentTitlesAreShownSoTheNextNameCanLeaveThem(): void
+    {
+        $captured = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured): MockResponse {
+            $captured = json_decode((string) $options['body'], true);
+
+            return $this->completed([
+                'title' => 'Buriti da vereda',
+                'description' => 'A palha guarda.',
+                'dimensions' => '',
+                'materials' => [['name' => 'Palha', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+
+        $this->generator($client, 'test-key')->suggest(
+            'jpeg-bytes',
+            'image/jpeg',
+            null,
+            null,
+            'Palha.',
+            '',
+            [],
+            [],
+            [],
+            ['Noite de luar', 'Sereno na lua'],
+        );
+
+        self::assertIsArray($captured);
+        self::assertStringContainsString('Noite de luar', $captured['input'][0]['text']);
+        self::assertStringContainsString('Sereno na lua', $captured['input'][0]['text']);
+        self::assertStringContainsString('Não repita as palavras nem o jeito destes nomes já usados', $captured['input'][0]['text']);
+        self::assertStringContainsString('cerrado', $captured['input'][0]['text']);
+    }
+
+    public function testSpokenSymbologyIsCarriedIntoTheWritingPass(): void
+    {
+        $calls = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$calls): MockResponse {
+            $body = json_decode((string) $options['body'], true);
+            $calls[] = is_array($body) ? $body : [];
+            if (count($calls) === 1) {
+                return $this->completed([
+                    'materials' => [['name' => 'pena de coruja', 'detail' => 'asa']],
+                    'birds' => ['coruja'],
+                    'stones' => [],
+                    'colours' => [],
+                    'purpose' => 'cura da casa',
+                    'story' => 'A peça nasceu para guardar a casa.',
+                    'for_whom' => 'quem cuida da casa',
+                    'symbology' => 'É para proteção da casa e trabalha a energia de cura.',
+                ]);
+            }
+
+            return $this->completed([
+                'title' => 'Casa em voz baixa',
+                'description' => 'A pena de coruja vela a casa.',
+                'symbolism' => 'A casa fica guardada, e a cura caminha devagar por dentro dela.',
+                'dimensions' => '',
+                'materials' => [['name' => 'pena de coruja', 'note' => 'Asa macia, de uma ave que escuta no escuro.']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+
+        $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, 'Proteção da casa e cura.')->profile;
+
+        self::assertArrayHasKey(1, $calls);
+        self::assertStringContainsString('campo symbology', $calls[0]['system_instruction']);
+        self::assertStringContainsString('É para proteção da casa e trabalha a energia de cura.', $calls[1]['input'][0]['text']);
+        self::assertStringContainsString('quem cuida da casa', $calls[1]['input'][0]['text']);
+        self::assertStringContainsString('cura da casa', $calls[1]['input'][0]['text']);
+        self::assertSame('A casa fica guardada, e a cura caminha devagar por dentro dela.', $profile->symbolism);
     }
 
     public function testMissingKeyDoesNotCallTheApi(): void
@@ -182,8 +273,8 @@ final class GeminiProfileGeneratorTest extends TestCase
 
         $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
 
-        self::assertSame(['gemini-3.8-flash', 'gemini-3.5-flash-lite'], $models);
-        self::assertSame(2, $client->getRequestsCount());
+        self::assertSame(['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash-lite'], $models);
+        self::assertSame(3, $client->getRequestsCount());
         self::assertSame('Cocar de fibra', $profile->title);
     }
 
@@ -271,7 +362,7 @@ final class GeminiProfileGeneratorTest extends TestCase
 
     public function testTrimsTheProfileToTheArtefactLimits(): void
     {
-        $client = new MockHttpClient([$this->completed([
+        $client = new MockHttpClient(fn () => $this->completed([
             'title' => str_repeat('á', 200),
             'description' => '',
             'dimensions' => '',
@@ -279,7 +370,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             'care' => ['  '],
             'handmade' => '',
             'size' => 'enorme',
-        ])]);
+        ]));
 
         $profile = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
 
@@ -287,7 +378,7 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame('', $profile->description);
         self::assertSame([['name' => 'informação a documentar', 'note' => '']], $profile->materials);
 
-        $long = new MockHttpClient([$this->completed([
+        $long = new MockHttpClient(fn () => $this->completed([
             'title' => 'Verso',
             'description' => str_repeat('á', 8001),
             'dimensions' => '',
@@ -295,7 +386,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             'care' => ['Guardar seco.'],
             'handmade' => 'Feito à mão.',
             'size' => 'M',
-        ])]);
+        ]));
         $kept = $this->generator($long, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
         self::assertSame(8000, mb_strlen($kept->description));
         self::assertSame(['informação a documentar'], $profile->care);
@@ -347,7 +438,7 @@ final class GeminiProfileGeneratorTest extends TestCase
 
     public function testOpenQuestionsStayShortAndUnknownChangesAreDropped(): void
     {
-        $client = new MockHttpClient([$this->completed([
+        $client = new MockHttpClient(fn () => $this->completed([
             'title' => 'Cocar',
             'description' => '',
             'dimensions' => '',
@@ -358,7 +449,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             'questions' => ['Qual a dimensão?', '  ', 'O material é fibra ou palha?', 'E a origem?'],
             'complete' => false,
             'changed' => ['dimensions', 'preço', 'dimensão'],
-        ])]);
+        ]));
 
         $turn = $this->generator($client, 'test-key')->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
 
