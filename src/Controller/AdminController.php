@@ -31,6 +31,7 @@ use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Attribute\Route;
@@ -48,6 +49,8 @@ final class AdminController extends AbstractController
         private ArchiveSnapshot $snapshots,
         private ProfileJobRepository $jobs,
         private ProfileJobRunner $jobRunner,
+        #[Autowire('%artefact_upload_dir%')]
+        private string $uploadDir,
     ) {
     }
 
@@ -268,19 +271,21 @@ final class AdminController extends AbstractController
         return $response;
     }
 
-    #[Route('/admin/records/{id}', name: 'admin_artefact_patch', methods: ['PATCH'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
+    #[Route('/admin/records/{id}/field', name: 'admin_artefact_patch', methods: ['POST', 'PATCH'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
     public function patchField(Request $request, string $id): JsonResponse
     {
         $token = $request->request->getString('_token');
         if ($token === '') {
             $token = (string) $request->headers->get('X-CSRF-Token', '');
         }
+        $field = $request->request->getString('field');
         if (!$this->isCsrfTokenValid('inline', $token)) {
-            return $this->json(['ok' => false, 'error' => 'Não foi possível salvar.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            $this->logInline($id, $field, 'csrf');
+
+            return $this->json(['ok' => false, 'error' => 'Não foi possível salvar. Atualize a página.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $artefact = $this->findArtefact($id);
-        $field = $request->request->getString('field');
         $value = $request->request->getString('value');
         try {
             match ($field) {
@@ -291,7 +296,13 @@ final class AdminController extends AbstractController
                 default => throw new InvalidArtefact('Esse campo não pode ser alterado aqui.'),
             };
         } catch (InvalidArtefact $exception) {
+            $this->logInline($id, $field, $exception->getMessage());
+
             return $this->json(['ok' => false, 'error' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (\Throwable $exception) {
+            $this->logInline($id, $field, $exception->getMessage());
+
+            return $this->json(['ok' => false, 'error' => 'Não foi possível salvar. Falha ao gravar.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $em = $this->artefacts->getEntityManager();
@@ -300,6 +311,8 @@ final class AdminController extends AbstractController
         $em->clear();
         $stored = $em->find(Artefact::class, $storedId);
         if (!$stored instanceof Artefact) {
+            $this->logInline($id, $field, 'read-back missing');
+
             return $this->json(['ok' => false, 'error' => 'Não foi possível gravar a peça. O arquivo não confirmou a gravação.'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
@@ -619,6 +632,24 @@ final class AdminController extends AbstractController
             'exportError' => $exportError,
             'backup' => $this->snapshots->status(),
         ], $status);
+    }
+
+    private function logInline(string $id, string $field, string $reason): void
+    {
+        $parent = dirname($this->uploadDir);
+        $root = basename($parent) === 'uploads' ? dirname($parent) : $parent;
+        $directory = $root.'/logs';
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            return;
+        }
+        $line = sprintf(
+            "%s inline %s field=%s %s\n",
+            (new \DateTimeImmutable())->format('c'),
+            $id,
+            $field === '' ? '-' : $field,
+            str_replace(["\n", "\r"], ' ', $reason),
+        );
+        file_put_contents($directory.'/inline.log', $line, FILE_APPEND);
     }
 
     private function assignTitle(Artefact $artefact, string $value): void

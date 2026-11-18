@@ -51,10 +51,10 @@ export default class extends Controller {
         body.append('value', value);
         try {
             const response = await fetch(this.urlValue, {
-                method: 'PATCH',
+                method: 'POST',
                 body,
                 credentials: 'same-origin',
-                headers: { Accept: 'application/json' },
+                headers: { Accept: 'application/json', 'X-CSRF-Token': this.tokenValue },
             });
             let payload = {};
             try {
@@ -65,7 +65,7 @@ export default class extends Controller {
             if (!response.ok || !payload.ok) {
                 this.inputTarget.value = this.saved;
                 this.pending = null;
-                this.message(payload.error || 'Não foi possível salvar.', true);
+                this.message(payload.error || `Não foi possível salvar (${response.status}).`, true);
                 return;
             }
             this.saved = payload.value ?? '';

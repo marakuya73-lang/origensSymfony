@@ -718,7 +718,7 @@ final class AdminToolsTest extends WebTestCase
         self::assertSelectorTextContains('.record-head', 'Ações');
         $publicToken = $artefact->getPublicToken();
 
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'price',
             'value' => 'R$ 99,90',
@@ -729,13 +729,13 @@ final class AdminToolsTest extends WebTestCase
         self::assertTrue($payload['ok']);
         self::assertSame('99,90', $payload['value']);
 
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'size',
             'value' => 'G',
         ]);
         self::assertResponseIsSuccessful();
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'category',
             'value' => '3',
@@ -756,7 +756,7 @@ final class AdminToolsTest extends WebTestCase
         self::assertSame($publicToken, $stored->getPublicToken());
         self::assertSame([], static::getContainer()->get(\App\Repository\ProfileJobRepository::class)->findAll());
 
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'title',
             'value' => '  Sol de japu  ',
@@ -798,7 +798,7 @@ final class AdminToolsTest extends WebTestCase
         $open = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted('', 'M', 1, '', '', [['name' => 'Barro', 'note' => 'Queimado.']], 'Guardar seco.', 'Feito à mão com calma.', [self::IMAGE], '2026-10-18'));
         self::assertFalse($open->isManual('title'));
         $openToken = $open->getPublicToken();
-        $client->request('PATCH', '/admin/records/'.$open->getId(), [
+        $client->request('POST', '/admin/records/'.$open->getId().'/field', [
             '_token' => $token,
             'field' => 'title',
             'value' => 'Nome dela',
@@ -819,31 +819,31 @@ final class AdminToolsTest extends WebTestCase
         self::assertSame($openToken, $stillHers->getPublicToken());
         self::assertSame([], static::getContainer()->get(\App\Repository\ProfileJobRepository::class)->findAll());
 
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'size',
             'value' => 'X',
         ]);
         self::assertResponseStatusCodeSame(422);
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'category',
             'value' => '9',
         ]);
         self::assertResponseStatusCodeSame(422);
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'price',
             'value' => 'abc',
         ]);
         self::assertResponseStatusCodeSame(422);
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'title',
             'value' => '   ',
         ]);
         self::assertResponseStatusCodeSame(422);
-        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/field', [
             '_token' => $token,
             'field' => 'notes',
             'value' => 'Outro',
@@ -858,6 +858,64 @@ final class AdminToolsTest extends WebTestCase
         self::assertSame('Sol de japu', $unchanged->getTitle());
         self::assertSame($publicToken, $unchanged->getPublicToken());
         self::assertTrue($unchanged->isManual('title'));
+    }
+
+    public function testInlinePostSavesPriceSizeAndCategory(): void
+    {
+        $client = $this->ownerClient();
+        $registrar = static::getContainer()->get(ArtefactRegistrar::class);
+        self::assertInstanceOf(ArtefactRegistrar::class, $registrar);
+        $artefact = $registrar->create($this->data('Cocar', 'Texto já escrito.', 125050));
+        $client->request('GET', '/admin/records');
+        $token = $client->getCrawler()->filter('[data-inline-cell-token-value]')->attr('data-inline-cell-token-value');
+        self::assertIsString($token);
+        $url = '/admin/records/'.$artefact->getId().'/field';
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/assets/controllers/inline_cell_controller.js');
+        self::assertStringContainsString("method: 'POST'", $script);
+        self::assertStringNotContainsString("method: 'PATCH'", $script);
+
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'price', 'value' => '12,50']);
+        self::assertResponseIsSuccessful();
+        $priced = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($priced);
+        self::assertSame('12,50', $priced['value']);
+
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'price', 'value' => '']);
+        self::assertResponseIsSuccessful();
+        $cleared = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($cleared);
+        self::assertSame('', $cleared['value']);
+
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'size', 'value' => 'M']);
+        self::assertResponseIsSuccessful();
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'category', 'value' => '2']);
+        self::assertResponseIsSuccessful();
+        $category = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($category);
+        self::assertSame('2', $category['value']);
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->clear();
+        $stored = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $stored);
+        self::assertNull($stored->getSalePriceCents());
+        self::assertSame('M', $stored->getSize());
+        self::assertSame(2, $stored->getCategory());
+        self::assertSame('Cocar', $stored->getTitle());
+        self::assertSame([], static::getContainer()->get(\App\Repository\ProfileJobRepository::class)->findAll());
+
+        $log = dirname(__DIR__, 2).'/var/logs/inline.log';
+        if (is_file($log)) {
+            unlink($log);
+        }
+        $client->request('POST', $url, ['_token' => 'nope', 'field' => 'size', 'value' => 'M']);
+        self::assertResponseStatusCodeSame(422);
+        $denied = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($denied);
+        self::assertStringContainsString('Atualize a página', (string) $denied['error']);
+        self::assertStringContainsString('csrf', (string) file_get_contents($log));
+        self::assertSame('M', $em->find(\App\Entity\Artefact::class, $artefact->getId())?->getSize());
     }
 
     public function testEditorAutosaveStoresTitleAndPriceWithoutQueueingAi(): void
