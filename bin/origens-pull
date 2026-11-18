@@ -76,6 +76,7 @@ link_uploads
 "$PHP_BIN" "$PROJECT/bin/console" doctrine:migrations:migrate --no-interaction --env=prod
 "$PHP_BIN" "$PROJECT/bin/console" asset-map:compile --env=prod
 "$PHP_BIN" "$PROJECT/bin/console" cache:clear --env=prod
+"$PHP_BIN" "$PROJECT/bin/console" origens:ai-jobs --reset-backoff --env=prod || true
 "$PHP_BIN" "$PROJECT/bin/console" origens:check --env=prod
 
 echo "origens-pull: database $(current_db)"
