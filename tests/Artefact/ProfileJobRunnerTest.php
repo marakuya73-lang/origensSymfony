@@ -67,6 +67,64 @@ final class ProfileJobRunnerTest extends KernelTestCase
         $again = $em->find(ProfileJob::class, $job->getId());
         self::assertInstanceOf(ProfileJob::class, $again);
         self::assertSame('done', $again->getStatus());
+        self::assertStringContainsString('queued: 1', $tester->getDisplay());
+        self::assertStringContainsString($job->getId(), $tester->getDisplay());
+        self::assertStringContainsString('jobs: 1', $tester->getDisplay());
+    }
+
+    public function testListPrintsTheJobAndDoesNotRunIt(): void
+    {
+        $job = $this->job();
+        $command = static::getContainer()->get(\App\Command\OrigensAiJobsCommand::class);
+        self::assertInstanceOf(\App\Command\OrigensAiJobsCommand::class, $command);
+        $tester = new \Symfony\Component\Console\Tester\CommandTester($command);
+        self::assertSame(0, $tester->execute(['--list' => true]));
+        self::assertStringContainsString('queued: 1', $tester->getDisplay());
+        self::assertStringContainsString($job->getId(), $tester->getDisplay());
+        self::assertStringNotContainsString('jobs:', $tester->getDisplay());
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->clear();
+        $again = $em->find(ProfileJob::class, $job->getId());
+        self::assertInstanceOf(ProfileJob::class, $again);
+        self::assertSame('queued', $again->getStatus());
+    }
+
+    public function testAPollKicksAJobThatHasWaited(): void
+    {
+        $this->useGenerator(new MockHttpClient(fn () => $this->profile()));
+        $job = $this->job();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->getConnection()->executeStatement(
+            'UPDATE profile_jobs SET created_at = :created WHERE id = :id',
+            ['created' => (new \DateTimeImmutable('-10 seconds'))->format('Y-m-d H:i:s'), 'id' => $job->getId()],
+        );
+        $em->clear();
+        self::assertTrue($this->runner()->kick($job->getId()));
+        $again = $em->find(ProfileJob::class, $job->getId());
+        self::assertInstanceOf(ProfileJob::class, $again);
+        self::assertSame('done', $again->getStatus());
+    }
+
+    public function testAStaleRunningJobIsQueuedAgain(): void
+    {
+        $job = $this->job();
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->getConnection()->executeStatement(
+            'UPDATE profile_jobs SET status = :status, updated_at = :updated WHERE id = :id',
+            [
+                'status' => 'running',
+                'updated' => (new \DateTimeImmutable('-3 minutes'))->format('Y-m-d H:i:s'),
+                'id' => $job->getId(),
+            ],
+        );
+        $em->clear();
+        self::assertSame(1, $this->runner()->releaseStale());
+        $again = $em->find(ProfileJob::class, $job->getId());
+        self::assertInstanceOf(ProfileJob::class, $again);
+        self::assertSame('queued', $again->getStatus());
     }
 
     private function job(): ProfileJob
