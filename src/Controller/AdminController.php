@@ -268,6 +268,52 @@ final class AdminController extends AbstractController
         return $response;
     }
 
+    #[Route('/admin/records/{id}', name: 'admin_artefact_patch', methods: ['PATCH'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
+    public function patchField(Request $request, string $id): JsonResponse
+    {
+        $token = $request->request->getString('_token');
+        if ($token === '') {
+            $token = (string) $request->headers->get('X-CSRF-Token', '');
+        }
+        if (!$this->isCsrfTokenValid('inline', $token)) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível salvar.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $artefact = $this->findArtefact($id);
+        $field = $request->request->getString('field');
+        $value = $request->request->getString('value');
+        try {
+            match ($field) {
+                'price' => $artefact->setSalePriceCents(SalePrice::cents($value)),
+                'size' => $this->assignSize($artefact, $value),
+                'category' => $this->assignCategory($artefact, $value),
+                'title' => $this->assignTitle($artefact, $value),
+                default => throw new InvalidArtefact('Esse campo não pode ser alterado aqui.'),
+            };
+        } catch (InvalidArtefact $exception) {
+            return $this->json(['ok' => false, 'error' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $em = $this->artefacts->getEntityManager();
+        $em->flush();
+        $storedId = $artefact->getId();
+        $em->clear();
+        $stored = $em->find(Artefact::class, $storedId);
+        if (!$stored instanceof Artefact) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível gravar a peça. O arquivo não confirmou a gravação.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $saved = match ($field) {
+            'price' => SalePrice::brl($stored->getSalePriceCents()),
+            'size' => $stored->getSize(),
+            'category' => (string) $stored->getCategory(),
+            'title' => $stored->getTitle(),
+            default => '',
+        };
+
+        return $this->json(['ok' => true, 'field' => $field, 'value' => $saved]);
+    }
+
     #[Route('/admin/records/{id}/edit', name: 'admin_artefact_edit', methods: ['GET', 'POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
     public function edit(Request $request, string $id): Response
     {
@@ -551,8 +597,11 @@ final class AdminController extends AbstractController
                 'id' => $artefact->getId(),
                 'code' => $artefact->getCode(),
                 'title' => $artefact->getTitle() !== '' ? $artefact->getTitle() : 'Peça em registro',
+                'titleInput' => $artefact->getTitle(),
                 'createdOn' => $artefact->createdOn(),
                 'price' => SalePrice::brl($artefact->getSalePriceCents()),
+                'size' => $artefact->getSize(),
+                'category' => $artefact->getCategory(),
                 'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,
                 'url' => ArtefactRules::isValidToken($token)
                     ? $request->getSchemeAndHttpHost().ArtefactRules::publicPath($token)
@@ -569,6 +618,35 @@ final class AdminController extends AbstractController
             'exportError' => $exportError,
             'backup' => $this->snapshots->status(),
         ], $status);
+    }
+
+    private function assignTitle(Artefact $artefact, string $value): void
+    {
+        $value = trim($value);
+        if ($value === '') {
+            throw new InvalidArtefact('O nome da peça não pode ficar vazio.');
+        }
+        if (mb_strlen($value) > 180) {
+            throw new InvalidArtefact('O nome da peça pode ter até 180 caracteres.');
+        }
+        $artefact->setTitle($value);
+        $artefact->markManual('title');
+    }
+
+    private function assignSize(Artefact $artefact, string $value): void
+    {
+        if (!in_array($value, ['P', 'M', 'G'], true)) {
+            throw new InvalidArtefact('Escolha P, M ou G.');
+        }
+        $artefact->setSize($value);
+    }
+
+    private function assignCategory(Artefact $artefact, string $value): void
+    {
+        if (!in_array($value, ['1', '2', '3'], true)) {
+            throw new InvalidArtefact('Escolha a categoria 1, 2 ou 3.');
+        }
+        $artefact->setCategory((int) $value);
     }
 
     private function findArtefact(string $id): Artefact

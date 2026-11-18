@@ -694,6 +694,162 @@ final class AdminToolsTest extends WebTestCase
         self::assertSelectorExists('audio[preload="metadata"] source[type="audio/mp4"]');
     }
 
+    public function testInlinePatchSavesOnlyThatFieldAndDoesNotQueueAi(): void
+    {
+        $client = $this->ownerClient();
+        $registrar = static::getContainer()->get(ArtefactRegistrar::class);
+        self::assertInstanceOf(ArtefactRegistrar::class, $registrar);
+        $artefact = $registrar->create($this->data('Cocar', 'Texto já escrito.', 125050));
+        $client->request('GET', '/admin/records');
+        $token = $client->getCrawler()->filter('[data-inline-cell-token-value]')->attr('data-inline-cell-token-value');
+        self::assertIsString($token);
+        self::assertSelectorExists('select[id^="size-"] option[value="G"]');
+        self::assertSelectorExists('select[id^="category-"] option[value="3"]');
+        self::assertSelectorExists('input[id^="title-"][data-action*="blur->inline-cell#commit"]');
+        $publicToken = $artefact->getPublicToken();
+
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'price',
+            'value' => 'R$ 99,90',
+        ]);
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertTrue($payload['ok']);
+        self::assertSame('R$ 99,90', $payload['value']);
+
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'size',
+            'value' => 'G',
+        ]);
+        self::assertResponseIsSuccessful();
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'category',
+            'value' => '3',
+        ]);
+        self::assertResponseIsSuccessful();
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->clear();
+        $stored = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $stored);
+        self::assertSame(9990, $stored->getSalePriceCents());
+        self::assertSame('G', $stored->getSize());
+        self::assertSame(3, $stored->getCategory());
+        self::assertSame('Cocar', $stored->getTitle());
+        self::assertSame('Texto já escrito.', $stored->getDescription());
+        self::assertSame('M-CAT1-001', $stored->getCode());
+        self::assertSame($publicToken, $stored->getPublicToken());
+        self::assertSame([], static::getContainer()->get(\App\Repository\ProfileJobRepository::class)->findAll());
+
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'title',
+            'value' => '  Sol de japu  ',
+        ]);
+        self::assertResponseIsSuccessful();
+        $renamed = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($renamed);
+        self::assertSame('Sol de japu', $renamed['value']);
+        $em->clear();
+        $named = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $named);
+        self::assertSame('Sol de japu', $named->getTitle());
+        self::assertTrue($named->isManual('title'));
+        self::assertSame($publicToken, $named->getPublicToken());
+        self::assertSame('M-CAT1-001', $named->getCode());
+        self::assertSame('Texto já escrito.', $named->getDescription());
+        self::assertSame(9990, $named->getSalePriceCents());
+        self::assertSame('G', $named->getSize());
+        self::assertSame(3, $named->getCategory());
+        $named->fillFromProfile(new \App\Artefact\GeneratedProfile(
+            'Nome da IA',
+            'Texto da IA.',
+            '30 cm',
+            [['name' => 'Linho', 'note' => 'Cru.']],
+            ['Não molhar.'],
+            'Feito devagar.',
+            'P',
+            'Outro símbolo.',
+        ));
+        $em->flush();
+        $em->clear();
+        $kept = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $kept);
+        self::assertSame('Sol de japu', $kept->getTitle());
+        self::assertSame($publicToken, $kept->getPublicToken());
+        self::assertSame('Texto já escrito.', $kept->getDescription());
+        self::assertSame([], static::getContainer()->get(\App\Repository\ProfileJobRepository::class)->findAll());
+
+        $open = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted('', 'M', 1, '', '', [['name' => 'Barro', 'note' => 'Queimado.']], 'Guardar seco.', 'Feito à mão com calma.', [self::IMAGE], '2026-10-18'));
+        self::assertFalse($open->isManual('title'));
+        $openToken = $open->getPublicToken();
+        $client->request('PATCH', '/admin/records/'.$open->getId(), [
+            '_token' => $token,
+            'field' => 'title',
+            'value' => 'Nome dela',
+        ]);
+        self::assertResponseIsSuccessful();
+        $em->clear();
+        $hers = $em->find(\App\Entity\Artefact::class, $open->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $hers);
+        self::assertSame('Nome dela', $hers->getTitle());
+        self::assertTrue($hers->isManual('title'));
+        self::assertSame($openToken, $hers->getPublicToken());
+        $hers->fillFromProfile(new \App\Artefact\GeneratedProfile('Nome da IA', 'Texto da IA.', '', [], [], '', 'M'));
+        $em->flush();
+        $em->clear();
+        $stillHers = $em->find(\App\Entity\Artefact::class, $open->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $stillHers);
+        self::assertSame('Nome dela', $stillHers->getTitle());
+        self::assertSame($openToken, $stillHers->getPublicToken());
+        self::assertSame([], static::getContainer()->get(\App\Repository\ProfileJobRepository::class)->findAll());
+
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'size',
+            'value' => 'X',
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'category',
+            'value' => '9',
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'price',
+            'value' => 'abc',
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'title',
+            'value' => '   ',
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
+            '_token' => $token,
+            'field' => 'notes',
+            'value' => 'Outro',
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        $em->clear();
+        $unchanged = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $unchanged);
+        self::assertSame('G', $unchanged->getSize());
+        self::assertSame(3, $unchanged->getCategory());
+        self::assertSame(9990, $unchanged->getSalePriceCents());
+        self::assertSame('Sol de japu', $unchanged->getTitle());
+        self::assertSame($publicToken, $unchanged->getPublicToken());
+        self::assertTrue($unchanged->isManual('title'));
+    }
+
     private function browser(): KernelBrowser
     {
         $client = static::createClient();
