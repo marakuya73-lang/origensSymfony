@@ -37,7 +37,10 @@
                 <a class="btn" href="{{ path('admin_artefact_new') }}">{{ icons.svg('plus') }} Novo artefacto</a>
             </div>
         </div>
-        <p class="hint backup-status">{{ backup.label }}{% if backup.stale %} Há peças gravadas depois deste backup.{% endif %}</p>
+        <p class="hint backup-status">{{ backup.label }}</p>
+        {% if backup.stale %}
+            <p class="hint backup-warning">Há peças gravadas depois deste backup.</p>
+        {% endif %}
 
         {% if exportError %}
             <p class="form-error" role="alert">{{ exportError }}</p>
@@ -77,11 +80,8 @@
                         {% else %}
                             <span></span>
                         {% endif %}
-                        <div>
+                        <div class="row-main">
                             <p class="code">{{ row.code }}</p>
-                            {% if row.aiLabel %}
-                                <p class="ai-badge">{{ row.aiLabel }}</p>
-                            {% endif %}
                             <p class="row-title-mobile">{{ row.title }}</p>
                             <p class="quiet row-date-mobile">{{ row.createdOn }}</p>
                             {% if row.price %}
@@ -92,6 +92,9 @@
                         <p class="row-price-desktop">{{ row.price }}</p>
                         <time class="quiet row-date-desktop">{{ row.createdOn }}</time>
                         <div class="row-actions">
+                            {% if row.aiLabel %}
+                                <p class="ai-badge">{{ row.aiLabel }}</p>
+                            {% endif %}
                             {% if row.url %}
                                 <button type="button" class="btn btn-ghost btn-icon" data-controller="clipboard" data-clipboard-text-value="{{ row.url }}" data-action="clipboard#copy" aria-label="Copiar endereço público" title="Copiar endereço público">
                                     <span data-clipboard-target="idle">{{ icons.svg('copy') }}</span>

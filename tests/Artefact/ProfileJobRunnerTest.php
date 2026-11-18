@@ -152,6 +152,92 @@ final class ProfileJobRunnerTest extends KernelTestCase
         self::assertNotSame('', $kept->getDescription());
     }
 
+    public function testAJobReadsThePieceAsItIsWhenItRuns(): void
+    {
+        $seen = [];
+        $this->useGenerator(new MockHttpClient(function (string $method, string $url, array $options) use (&$seen) {
+            $body = json_decode((string) $options['body'], true);
+            self::assertIsArray($body);
+            $seen[] = $body;
+            if (count($seen) === 1) {
+                return $this->profile();
+            }
+
+            return $this->profile();
+        }));
+        $this->job();
+        $relative = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/ffffffff-ffff-4fff-8fff-ffffffffffff.jpg';
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $registrar = static::getContainer()->get(\App\Artefact\ArtefactRegistrar::class);
+        self::assertInstanceOf(\App\Artefact\ArtefactRegistrar::class, $registrar);
+        $artefact = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted('', 'M', 1, '', '', [], '', '', [$relative], '2026-11-18'), [], 'antes');
+        $job = new ProfileJob($relative);
+        $job->setArtefactId($artefact->getId());
+        $job->setNotes('snapshot velho');
+        $em->persist($job);
+        $em->flush();
+
+        $runner = $this->runner();
+        $audio = $runner->storeAudio('RIFF'.pack('V', 36).'WAVEfmt '.pack('V', 16).pack('v', 1).pack('v', 1).pack('V', 8000).pack('V', 8000).pack('v', 1).pack('v', 8).'data'.pack('V', 0), 'audio/wav');
+        $artefact->setNotes('com o áudio');
+        $artefact->setAudioPath($audio);
+        $artefact->setAudioMime('audio/wav');
+        $em->flush();
+        $runner->execute($job);
+
+        self::assertSame('done', $job->getStatus());
+        self::assertCount(3, $seen[0]['input'] ?? []);
+        $prompt = (string) ($seen[0]['input'][0]['text'] ?? '');
+        self::assertStringContainsString('com o áudio', $prompt);
+        self::assertStringNotContainsString('snapshot velho', $prompt);
+        self::assertSame('audio', $seen[0]['input'][2]['type'] ?? null);
+    }
+
+    public function testAudioSavedWhileRunningIsIncludedInASecondPass(): void
+    {
+        $seen = [];
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $this->job();
+        $relative = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/ffffffff-ffff-4fff-8fff-ffffffffffff.jpg';
+        $registrar = static::getContainer()->get(\App\Artefact\ArtefactRegistrar::class);
+        self::assertInstanceOf(\App\Artefact\ArtefactRegistrar::class, $registrar);
+        $artefact = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted('', 'M', 1, '', '', [], '', '', [$relative], '2026-11-18'), [], 'antes');
+        $job = new ProfileJob($relative);
+        $job->setArtefactId($artefact->getId());
+        $em->persist($job);
+        $em->flush();
+        $runner = null;
+        $this->useGenerator(new MockHttpClient(function (string $method, string $url, array $options) use (&$seen, &$runner, $artefact, $job, $em): MockResponse {
+            $body = json_decode((string) $options['body'], true);
+            self::assertIsArray($body);
+            $seen[] = (string) ($body['input'][0]['text'] ?? '');
+            if (count($seen) === 1) {
+                self::assertInstanceOf(ProfileJobRunner::class, $runner);
+                $audio = $runner->storeAudio('RIFF'.pack('V', 36).'WAVEfmt '.pack('V', 16).pack('v', 1).pack('v', 1).pack('V', 8000).pack('V', 8000).pack('v', 1).pack('v', 8).'data'.pack('V', 0), 'audio/wav');
+                $artefact->setNotes('com o áudio');
+                $artefact->setAudioPath($audio);
+                $artefact->setAudioMime('audio/wav');
+                $job->setRerun(true);
+                $em->flush();
+            }
+
+            return $this->profile();
+        }));
+        $runner = $this->runner();
+        $runner->execute($job);
+        $em->clear();
+        $stored = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $stored);
+        self::assertSame('done', $em->find(ProfileJob::class, $job->getId())?->getStatus());
+        self::assertSame('Abano de palha', $stored->getTitle());
+        self::assertCount(4, $seen);
+        self::assertStringContainsString('antes', $seen[0]);
+        self::assertStringContainsString('com o áudio', $seen[2]);
+        self::assertStringNotContainsString('com o áudio', $seen[0]);
+    }
+
     public function testAStaleRunningJobIsQueuedAgain(): void
     {
         $job = $this->job();

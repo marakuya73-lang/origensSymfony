@@ -60,6 +60,9 @@ class ProfileJob
     #[ORM\Column(type: Types::TEXT)]
     private string $touched = '[]';
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $rerun = false;
+
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private \DateTimeImmutable $runAt;
 
@@ -223,6 +226,16 @@ class ProfileJob
     public function setTouched(string $touched): void
     {
         $this->touched = $touched;
+    }
+
+    public function isRerun(): bool
+    {
+        return $this->rerun;
+    }
+
+    public function setRerun(bool $rerun): void
+    {
+        $this->rerun = $rerun;
     }
 
     public function getRunAt(): \DateTimeImmutable

@@ -4,7 +4,7 @@ const MAX_AUDIO = 10 * 1024 * 1024;
 const MAX_RECORDING = 180000;
 
 export default class extends Controller {
-    static targets = ['notes', 'generate', 'toast', 'toastMessage', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume', 'link', 'badge'];
+    static targets = ['notes', 'generate', 'toast', 'toastMessage', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume', 'link', 'badge', 'cancel'];
     static values = { url: String, token: String };
 
     connect() {
@@ -266,7 +266,7 @@ export default class extends Controller {
         }
         this.attachAudio(this.audioFor(true));
         const body = new FormData(this.element);
-        body.set('generate', '1');
+        body.delete('generate');
         const record = this.element.dataset.recordId;
         if (record) {
             body.set('artefact', record);
@@ -279,7 +279,11 @@ export default class extends Controller {
                 method: 'POST',
                 body,
                 credentials: 'same-origin',
-                headers: { Accept: 'application/json', 'X-Origens-Autosave': '1' },
+                headers: {
+                    Accept: 'application/json',
+                    'X-Origens-Autosave': '1',
+                    'X-Origens-Generate': '1',
+                },
             });
             let payload = {};
             try {
@@ -298,6 +302,7 @@ export default class extends Controller {
             if (payload.job) {
                 this.jobId = payload.job;
                 this.rememberJob(payload.job);
+                this.showCancel(true);
                 this.poll(payload.job);
             }
         } catch {
@@ -446,8 +451,14 @@ export default class extends Controller {
                 this.showError(payload.error || 'Não foi possível gerar o perfil agora. Tente novamente em instantes.');
                 return;
             }
+            if (payload.status === 'cancelled') {
+                this.clearJob();
+                this.setStatus('Cancelado.');
+                return;
+            }
             if (payload.status === 'done' && payload.profile) {
                 localStorage.removeItem('origens-profile-job');
+                this.showCancel(false);
                 this.finish(payload);
                 return;
             }
@@ -455,16 +466,14 @@ export default class extends Controller {
                 localStorage.removeItem('origens-profile-job');
                 this.jobId = id;
                 this.setBusy(false);
+                this.showCancel(false);
                 this.paintBadge('falhou');
                 this.showError(payload.error || 'Não foi possível gerar o perfil.');
                 return;
             }
+            this.showCancel(payload.status === 'queued' || payload.status === 'running');
             this.paintBadge(payload.status === 'done' ? 'pronto' : (payload.status === 'queued' ? 'aguardando IA' : 'gerando'));
             this.setStatus(payload.message || 'Gerando…');
-            const label = this.hasGenerateTarget ? this.generateTarget.querySelector('[data-generate-label]') : null;
-            if (label && payload.message) {
-                label.textContent = payload.message;
-            }
             this.poll(id);
         } catch {
             this.poll(id);
@@ -486,6 +495,44 @@ export default class extends Controller {
         this.openPanel();
         this.setStatus(payload.complete ? 'Perfil completo. Nada foi salvo.' : 'Perfil atualizado. Nada foi salvo.');
         this.setBusy(false);
+    }
+
+    async cancel(event) {
+        event.preventDefault();
+        if (!this.jobId) {
+            return;
+        }
+        window.clearTimeout(this.jobTimer);
+        const body = new FormData();
+        body.append('_token', this.tokenValue);
+        try {
+            await fetch(`${this.urlValue}/${this.jobId}/cancel`, {
+                method: 'POST',
+                body,
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            });
+        } catch {
+            this.showError('Não foi possível cancelar.');
+            return;
+        }
+        this.clearJob();
+        this.setStatus('Cancelado. Pode gerar de novo quando quiser.');
+    }
+
+    clearJob() {
+        window.clearTimeout(this.jobTimer);
+        this.jobId = null;
+        localStorage.removeItem('origens-profile-job');
+        this.showCancel(false);
+        this.paintBadge('');
+        this.setBusy(false);
+    }
+
+    showCancel(on) {
+        if (this.hasCancelTarget) {
+            this.cancelTarget.hidden = !on;
+        }
     }
 
     async retry(event) {

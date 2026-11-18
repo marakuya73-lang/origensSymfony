@@ -144,6 +144,7 @@ final class AdminController extends AbstractController
             'queued' => 'Na fila…',
             'done' => 'Perfil pronto. Nada foi salvo.',
             'failed' => $job->getError() ?? 'Não foi possível gerar o perfil.',
+            'cancelled' => 'Cancelado.',
             default => 'Gerando…',
         };
         $payload = [
@@ -269,6 +270,26 @@ final class AdminController extends AbstractController
         }
 
         return $this->redirectToRoute('admin_records');
+    }
+
+    #[Route('/admin/records/profile/{id}/cancel', name: 'admin_artefact_profile_cancel', methods: ['POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
+    public function cancelProfile(Request $request, string $id): JsonResponse
+    {
+        if (!$this->isCsrfTokenValid('submit', $request->request->getString('_token'))) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível cancelar.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        $job = $this->jobs->find($id);
+        if (!$job instanceof ProfileJob) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível encontrar essa geração.'], Response::HTTP_NOT_FOUND);
+        }
+        $this->jobRunner->cancel($job);
+
+        return $this->json([
+            'ok' => true,
+            'job' => $job->getId(),
+            'status' => 'cancelled',
+            'message' => 'Cancelado.',
+        ]);
     }
 
     #[Route('/admin/records/profile/{id}/retry', name: 'admin_artefact_profile_retry', methods: ['POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
@@ -409,14 +430,16 @@ final class AdminController extends AbstractController
             return $this->saveFailed($autosave, $current, $submission->draft, 'Não foi possível salvar a peça. Nenhum código existente foi alterado.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $force = $request->request->getString('generate') === '1';
+        $generate = $request->headers->get('X-Origens-Generate') === '1';
+        $plainSave = !$autosave && ($artefact->getTitle() === '' || $artefact->getDescription() === '');
         $job = null;
-        if ($force || !$autosave) {
-            $job = $this->jobRunner->queueFor($artefact, $force);
+        if ($generate || $plainSave) {
+            $job = $this->jobRunner->queueFor($artefact, $generate);
             if ($job instanceof ProfileJob) {
                 $request->attributes->set('origens_profile_job', $job->getId());
             }
         }
+        $this->jobRunner->noteWhileRunning($artefact);
         $url = $request->getSchemeAndHttpHost().ArtefactRules::publicPath($artefact->getPublicToken());
 
         if ($autosave) {

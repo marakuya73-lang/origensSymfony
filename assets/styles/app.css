@@ -255,20 +255,32 @@ a { color: inherit; }
 .record-head { display: none; }
 .record-row {
     position: relative;
-    display: grid;
-    grid-template-columns: auto 4rem minmax(0, 1fr) auto;
-    gap: 1rem;
-    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 0.75rem 1rem;
     border-bottom: 1px solid var(--rule);
     padding: 1.25rem 0;
 }
+.record-row > img { width: 4rem; flex: 0 0 4rem; }
+.row-check { flex: 0 0 auto; align-self: center; }
+.row-main { flex: 1 1 0; min-width: 0; }
 .row-open { position: absolute; inset: 0; }
-.code { font-family: var(--font-mono); font-size: 0.75rem; overflow-wrap: anywhere; }
-.row-title-mobile, .row-title-desktop { font-family: var(--font-display); font-size: 1.5rem; overflow-wrap: break-word; }
+.code { font-family: var(--font-mono); font-size: 0.75rem; overflow-wrap: normal; word-break: normal; }
+.row-title-mobile, .row-title-desktop { font-family: var(--font-display); font-size: 1.5rem; overflow-wrap: break-word; word-break: normal; }
 .row-title-mobile { margin-top: 0.5rem; }
 .row-date-mobile { margin-top: 0.5rem; }
 .row-title-desktop, .row-date-desktop { display: none; }
-.row-actions { position: relative; z-index: 1; display: flex; justify-content: flex-end; align-items: center; gap: 0.15rem; }
+.row-actions {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.35rem;
+}
 .admin-motto { margin-top: 4rem; font-family: var(--font-display); font-size: 1.25rem; font-style: italic; color: var(--muted); }
 
 .editor-page { min-height: 100vh; display: flex; justify-content: center; padding: 1.5rem 1rem 3rem; }
@@ -473,10 +485,16 @@ fieldset:disabled { opacity: 0.6; }
     .admin-heading { margin-top: 4rem; }
     .admin-heading h1 { font-size: 3.75rem; }
     .record-head, .record-row {
-        grid-template-columns: auto 5rem 1fr 1.4fr 7.5rem 8rem 8rem;
+        display: grid;
+        grid-template-columns: auto 5rem minmax(0, 1fr) minmax(0, 1.4fr) 7.5rem 8rem minmax(9rem, auto);
         gap: 1.25rem;
+        align-items: center;
     }
-    .record-head { display: grid; padding-bottom: 0.75rem; border-bottom: 1px solid var(--rule); }
+    .record-row { flex-wrap: nowrap; }
+    .record-row > img { width: auto; flex: initial; }
+    .row-main { flex: initial; min-width: 0; }
+    .row-actions { flex: initial; flex-wrap: wrap; justify-content: flex-end; }
+    .record-head { padding-bottom: 0.75rem; border-bottom: 1px solid var(--rule); }
     .row-title-desktop, .row-date-desktop, .row-price-desktop { display: block; }
     .row-title-mobile, .row-date-mobile, .row-price-mobile { display: none; }
     .editor-panel { padding: 2rem; }

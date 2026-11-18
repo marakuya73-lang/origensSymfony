@@ -107,7 +107,8 @@
                     </div>
                     <p class="hint">O áudio é opcional.</p>
                     <div class="assist-actions">
-                        <button type="submit" class="btn generate-btn" name="generate" value="1" data-profile-assist-target="generate" data-action="profile-assist#saveAndGenerate"><span data-generate-label>Salvar e gerar com IA</span></button>
+                        <button type="button" class="btn generate-btn" data-profile-assist-target="generate" data-action="profile-assist#saveAndGenerate"><span data-generate-label>Salvar e gerar com IA</span></button>
+                        <button type="button" class="btn btn-ghost" data-profile-assist-target="cancel" data-action="profile-assist#cancel" hidden>Cancelar</button>
                     </div>
                     <div class="chat" data-profile-assist-target="chat" hidden>
                         <div class="chat-thread" data-profile-assist-target="thread"></div>

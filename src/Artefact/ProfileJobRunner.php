@@ -94,7 +94,7 @@ final class ProfileJobRunner
         return $done;
     }
 
-    public function execute(ProfileJob $job): void
+    public function execute(ProfileJob $job, int $follow = 1): void
     {
         $claimed = $this->em->getConnection()->executeStatement(
             'UPDATE profile_jobs SET status = :running, updated_at = :now WHERE id = :id AND status = :queued',
@@ -111,8 +111,9 @@ final class ProfileJobRunner
             return;
         }
         $this->em->refresh($job);
+        $live = $this->inputs($job);
         $job->setAttempts($job->getAttempts() + 1);
-        $job->setStage($job->getAudioPath() !== null ? 'listening' : 'looking');
+        $job->setStage($live['audioPath'] !== null ? 'listening' : 'looking');
         $this->markArtefact($job, 'running');
         $this->em->flush();
         $started = microtime(true);
@@ -122,31 +123,45 @@ final class ProfileJobRunner
         });
 
         try {
-            $jpeg = $this->images->geminiJpeg($job->getImagePath());
+            if ($this->abandoned($job)) {
+                return;
+            }
+            $live = $this->inputs($job);
+            $jpeg = $this->images->geminiJpeg($live['image']);
             $job->setStage('writing');
             $this->em->flush();
-            $audio = $this->audio($job);
+            if ($this->abandoned($job)) {
+                return;
+            }
+            $audio = $this->audioBytes($live['audioPath'], $live['audioMime']);
             $history = json_decode($job->getHistory(), true);
-            $form = json_decode($job->getForm(), true);
-            $touched = json_decode($job->getTouched(), true);
             $turn = $this->profiles->suggest(
                 $jpeg,
                 'image/jpeg',
                 $audio[0] ?? null,
                 $audio[1] ?? null,
-                $job->getNotes(),
+                $live['notes'],
                 $job->getAnswer(),
                 is_array($history) ? $history : [],
-                is_array($form) ? $form : [],
-                is_array($touched) ? $touched : [],
+                $live['form'],
+                $live['touched'],
                 $this->artefacts->recentTitles(),
             );
             $profile = ProfileExchange::merge(
                 $turn->profile,
-                is_array($form) ? ProfileExchange::form($job->getForm()) : ProfileExchange::form('{}'),
-                is_array($touched) ? ProfileExchange::touched($job->getTouched()) : [],
+                $live['form'],
+                $live['touched'],
                 $turn->changed,
             );
+            if ($this->abandoned($job)) {
+                return;
+            }
+            $latest = $this->inputs($job);
+            if ($job->isRerun() || $latest['key'] !== $live['key']) {
+                $this->queueAgain($job, $started, $follow);
+
+                return;
+            }
             $encoded = json_encode([
                 'profile' => $profile->toArray(),
                 'questions' => $turn->questions,
@@ -192,6 +207,9 @@ final class ProfileJobRunner
 
     private function failOrRetry(ProfileJob $job, ProfileGenerationFailed $exception, float $started): void
     {
+        if ($this->abandoned($job)) {
+            return;
+        }
         $permanent = in_array($exception->getMessage(), [
             ProfileGenerationFailed::UNCONFIGURED,
             ProfileGenerationFailed::REJECTED_KEY,
@@ -226,15 +244,70 @@ final class ProfileJobRunner
             return null;
         }
         $existing = $this->jobs->latestFor($artefact->getId());
-        if ($existing instanceof ProfileJob && in_array($existing->getStatus(), ['queued', 'running'], true)) {
+        if ($existing instanceof ProfileJob && $existing->getStatus() === 'queued') {
+            if (!$force) {
+                return $existing;
+            }
+            $this->copyInputs($existing, $artefact);
+            $this->em->flush();
+
+            return $existing;
+        }
+        if ($existing instanceof ProfileJob && $existing->getStatus() === 'running') {
+            $this->noteWhileRunning($artefact);
+
             return $existing;
         }
         if ($existing instanceof ProfileJob) {
             return $this->requeue($existing);
         }
 
+        return $this->enqueue($artefact);
+    }
+
+    public function noteWhileRunning(Artefact $artefact): void
+    {
+        $job = $this->jobs->latestFor($artefact->getId());
+        if ($job instanceof ProfileJob && $job->getStatus() === 'running') {
+            $job->setRerun(true);
+            $this->em->flush();
+        }
+    }
+
+    public function cancel(ProfileJob $job): void
+    {
+        if (!in_array($job->getStatus(), ['queued', 'running'], true)) {
+            return;
+        }
+        $job->setStatus('cancelled');
+        $job->setStage('cancelled');
+        $job->setError(null);
+        $this->markArtefact($job, '');
+        $this->em->flush();
+    }
+
+    private function enqueue(Artefact $artefact): ?ProfileJob
+    {
+        $photo = $artefact->getImages()[0] ?? null;
+        if (!is_string($photo) || $photo === '') {
+            return null;
+        }
         $job = new ProfileJob($photo);
         $job->setArtefactId($artefact->getId());
+        $this->copyInputs($job, $artefact);
+        $artefact->setAiStatus('queued');
+        $this->em->persist($job);
+        $this->em->flush();
+
+        return $job;
+    }
+
+    private function copyInputs(ProfileJob $job, Artefact $artefact): void
+    {
+        $photo = $artefact->getImages()[0] ?? null;
+        if (is_string($photo) && $photo !== '') {
+            $job->setImagePath($photo);
+        }
         $job->setNotes($artefact->getNotes());
         $job->setAudioPath($artefact->getAudioPath());
         $job->setAudioMime($artefact->getAudioMime());
@@ -249,11 +322,7 @@ final class ProfileJobRunner
             'size' => $artefact->getSize(),
         ], JSON_UNESCAPED_UNICODE));
         $job->setTouched((string) json_encode($artefact->getManualFields(), JSON_UNESCAPED_UNICODE));
-        $artefact->setAiStatus('queued');
-        $this->em->persist($job);
-        $this->em->flush();
-
-        return $job;
+        $job->setRunAt(new \DateTimeImmutable('-1 second'));
     }
 
     public function requeue(ProfileJob $job): ProfileJob
@@ -268,14 +337,7 @@ final class ProfileJobRunner
         $job->setRunAt(new \DateTimeImmutable('-1 second'));
         $artefact = $this->artefactFor($job);
         if ($artefact instanceof Artefact) {
-            $photo = $artefact->getImages()[0] ?? null;
-            if (is_string($photo) && $photo !== '') {
-                $job->setImagePath($photo);
-            }
-            $job->setNotes($artefact->getNotes());
-            $job->setAudioPath($artefact->getAudioPath());
-            $job->setAudioMime($artefact->getAudioMime());
-            $job->setTouched((string) json_encode($artefact->getManualFields(), JSON_UNESCAPED_UNICODE));
+            $this->copyInputs($job, $artefact);
         }
         $this->markArtefact($job, 'queued');
         $this->em->flush();
@@ -302,6 +364,19 @@ final class ProfileJobRunner
         }
     }
 
+    private function abandoned(ProfileJob $job): bool
+    {
+        $this->em->refresh($job);
+        if ($job->getStatus() !== 'cancelled') {
+            return false;
+        }
+        $this->markArtefact($job, '');
+        $this->em->flush();
+        $this->logLine($job->getId().' cancelled');
+
+        return true;
+    }
+
     private function artefactFor(ProfileJob $job): ?Artefact
     {
         $id = $job->getArtefactId();
@@ -313,12 +388,75 @@ final class ProfileJobRunner
         return $artefact instanceof Artefact ? $artefact : null;
     }
 
+    /**
+     * @return array{image: string, notes: string, audioPath: ?string, audioMime: ?string, form: array<string, mixed>, touched: list<string>, key: string}
+     */
+    private function inputs(ProfileJob $job): array
+    {
+        $artefact = $this->artefactFor($job);
+        if ($artefact instanceof Artefact) {
+            $this->em->refresh($artefact);
+            $photo = $artefact->getImages()[0] ?? '';
+            $image = is_string($photo) && $photo !== '' ? $photo : $job->getImagePath();
+            $notes = $artefact->getNotes();
+            $audioPath = $artefact->getAudioPath();
+            $audioMime = $artefact->getAudioMime();
+            $form = [
+                'title' => $artefact->getTitle(),
+                'description' => $artefact->getDescription(),
+                'symbolism' => $artefact->getSymbolism(),
+                'dimensions' => $artefact->getDimensions(),
+                'materials' => $artefact->getMaterials(),
+                'care' => $artefact->getCare(),
+                'handmade' => $artefact->getHandmade(),
+                'size' => $artefact->getSize(),
+            ];
+            $touched = $artefact->getManualFields();
+        } else {
+            $image = $job->getImagePath();
+            $notes = $job->getNotes();
+            $audioPath = $job->getAudioPath();
+            $audioMime = $job->getAudioMime();
+            $form = ProfileExchange::form($job->getForm());
+            $touched = ProfileExchange::touched($job->getTouched());
+        }
+
+        return [
+            'image' => $image,
+            'notes' => $notes,
+            'audioPath' => $audioPath,
+            'audioMime' => $audioMime,
+            'form' => $form,
+            'touched' => $touched,
+            'key' => $image.'|'.$notes.'|'.($audioPath ?? '').'|'.($audioMime ?? ''),
+        ];
+    }
+
+    private function queueAgain(ProfileJob $job, float $started, int $follow): void
+    {
+        $job->setRerun(false);
+        $job->setStatus('queued');
+        $job->setStage('queued');
+        $job->setError(null);
+        $job->setRunAt(new \DateTimeImmutable('-1 second'));
+        $this->markArtefact($job, 'queued');
+        $this->log($job, 'rerun', $started);
+        $this->em->flush();
+        if ($follow > 0) {
+            $this->execute($job, $follow - 1);
+        }
+    }
+
     /** @return array{0: string, 1: string}|null */
     private function audio(ProfileJob $job): ?array
     {
-        $relative = $job->getAudioPath();
-        $mime = $job->getAudioMime();
-        if ($relative === null || $mime === null) {
+        return $this->audioBytes($job->getAudioPath(), $job->getAudioMime());
+    }
+
+    /** @return array{0: string, 1: string}|null */
+    private function audioBytes(?string $relative, ?string $mime): ?array
+    {
+        if ($relative === null || $relative === '' || $mime === null || $mime === '') {
             return null;
         }
         $full = dirname($this->uploads).'/'.$relative;
