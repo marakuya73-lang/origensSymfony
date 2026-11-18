@@ -25,6 +25,11 @@
             <p class="label saved-label">Endereço público · NFC</p>
             <p class="hint">É este endereço longo que vai no seu cartão NFC.</p>
             <p class="saved-url">{{ saved.url }}</p>
+            {% if saved.ai|default('') %}
+                <p class="ai-badge">{{ saved.ai }}</p>
+                <p class="hint">A IA escreve o texto em seguida. Você pode sair e registrar outra peça.</p>
+                <a class="btn btn-ghost" href="{{ path('admin_artefact_new') }}">Registrar outra peça</a>
+            {% endif %}
             <div class="saved-actions">
                 <button type="button" class="btn btn-outline" data-controller="clipboard" data-clipboard-text-value="{{ saved.url }}" data-action="clipboard#copy">
                     <span data-clipboard-target="idle">{{ icons.svg('copy') }} Copiar URL</span>

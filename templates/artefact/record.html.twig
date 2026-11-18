@@ -35,6 +35,9 @@
                 <div class="hero-copy">
                     <p class="label piece-ref">{{ a.reference }}</p>
                     <h1 class="piece-title">{{ a.title }}</h1>
+                    {% if a.pending %}
+                        <p class="lede">O texto desta peça ainda está sendo escrito.</p>
+                    {% endif %}
                     {% if a.lede %}
                         <p class="lede">{{ a.lede|nl2br }}</p>
                     {% endif %}
@@ -68,6 +71,7 @@
                     </div>
                 {% endif %}
 
+                {% if a.materials is not empty %}
                 <section class="section">
                     <div class="section-label">
                         <p class="label">§ 01</p>
@@ -89,7 +93,9 @@
                         </ul>
                     </div>
                 </section>
+                {% endif %}
 
+                {% if a.handmade %}
                 <section class="section">
                     <div class="section-label">
                         <p class="label">§ 02</p>
@@ -99,7 +105,9 @@
                         <p class="handmade">{{ a.handmade|nl2br }}</p>
                     </div>
                 </section>
+                {% endif %}
 
+                {% if a.care is not empty %}
                 <section class="section">
                     <div class="section-label">
                         <p class="label">§ 03</p>
@@ -116,6 +124,7 @@
                         </ol>
                     </div>
                 </section>
+                {% endif %}
 
                 <section class="record-wrap">
                     <div class="record-card">

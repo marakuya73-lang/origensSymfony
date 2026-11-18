@@ -5,7 +5,7 @@ parameters:
     artefact_upload_dir: '%env(resolve:ARTEFACT_UPLOAD_DIR)%'
     env(GEMINI_API_KEY): ''
     env(GEMINI_MODEL): 'gemini-3.8-flash'
-    env(GEMINI_FALLBACK_MODEL): 'gemini-3.5-flash-lite'
+    env(GEMINI_FALLBACK_MODEL): 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash'
 
 services:
     _defaults:

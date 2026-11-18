@@ -63,14 +63,12 @@ final readonly class ArtefactData
 
         $valid = in_array($size, ['P', 'M', 'G'], true)
             && in_array($category, [1, 2, 3], true)
-            && $title !== ''
             && mb_strlen($title) <= 180
             && mb_strlen($description) <= ArtefactRules::DESCRIPTION_MAX
             && mb_strlen($symbolism) <= ArtefactRules::DESCRIPTION_MAX
             && mb_strlen($dimensions) <= 100
             && $normalizedMaterials !== null
             && $lines !== null
-            && $handmade !== ''
             && mb_strlen($handmade) <= 5000
             && $images !== null
             && $date instanceof \DateTimeImmutable
@@ -103,7 +101,7 @@ final readonly class ArtefactData
      */
     private static function materials(array $materials): ?array
     {
-        if ($materials === [] || count($materials) > 30) {
+        if (count($materials) > 30) {
             return null;
         }
 
@@ -114,7 +112,10 @@ final readonly class ArtefactData
             }
             $name = trim((string) ($material['name'] ?? ''));
             $note = trim((string) ($material['note'] ?? ''));
-            if ($name === '' || mb_strlen($name) > 150 || mb_strlen($note) > 2000) {
+            if ($name === '') {
+                continue;
+            }
+            if (mb_strlen($name) > 150 || mb_strlen($note) > 2000) {
                 return null;
             }
             $normalized[] = ['name' => $name, 'note' => $note];
@@ -138,7 +139,7 @@ final readonly class ArtefactData
             $lines[] = $line;
         }
 
-        if ($lines === [] || count($lines) > 30) {
+        if (count($lines) > 30) {
             return null;
         }
 

@@ -14,7 +14,7 @@ final class GeminiProfileGenerator
 
     private const DEFAULT_MODEL = 'gemini-3.8-flash';
 
-    private const DEFAULT_FALLBACK = 'gemini-3.5-flash-lite';
+    private const DEFAULT_FALLBACK = 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash';
 
     public function __construct(
         private HttpClientInterface $httpClient,
@@ -26,6 +26,15 @@ final class GeminiProfileGenerator
         private string $fallbackModel = self::DEFAULT_FALLBACK,
         private ?SymbolicTradition $tradition = null,
     ) {
+    }
+
+    /** @var null|\Closure(string, int, string): void */
+    private ?\Closure $attemptLog = null;
+
+    /** @param \Closure(string, int, string): void $log */
+    public function onAttempt(\Closure $log): void
+    {
+        $this->attemptLog = $log;
     }
 
     /**
@@ -55,8 +64,7 @@ final class GeminiProfileGenerator
             throw new ProfileGenerationFailed(ProfileGenerationFailed::UNUSABLE, 422);
         }
 
-        $model = $this->modelName($this->model, self::DEFAULT_MODEL);
-        $fallback = $this->modelName($this->fallbackModel, self::DEFAULT_FALLBACK);
+        $models = $this->modelChain();
 
         $notes = trim($notes);
         if (mb_strlen($notes) > 4000) {
@@ -71,15 +79,23 @@ final class GeminiProfileGenerator
             $input[] = ['type' => 'audio', 'data' => base64_encode($audio), 'mime_type' => $audioMime];
         }
 
-        try {
-            return $this->pipeline($apiKey, $model, $input);
-        } catch (ProfileGenerationFailed $exception) {
-            if (!$this->retryable($exception) || $fallback === $model) {
-                throw $exception;
+        $last = null;
+        foreach ($models as $model) {
+            try {
+                return $this->pipeline($apiKey, $model, $input);
+            } catch (ProfileGenerationFailed $exception) {
+                $last = $exception;
+                if (!$this->retryable($exception)) {
+                    throw $exception;
+                }
             }
         }
 
-        return $this->pipeline($apiKey, $fallback, $input);
+        if (!$last instanceof ProfileGenerationFailed) {
+            throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 503);
+        }
+
+        throw $last;
     }
 
     /** @param list<array<string, mixed>> $input */
@@ -137,10 +153,13 @@ final class GeminiProfileGenerator
             $status = $response->getStatusCode();
             $body = $response->getContent(false);
         } catch (TransportExceptionInterface) {
-            throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 502);
+            $this->note($model, 502, 'transport');
+            throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 502, 'transport');
         }
 
         $payload = json_decode($body, true);
+        $detail = $this->errorDetail($payload);
+        $this->note($model, $status, $detail !== '' ? $detail : ($status === 200 ? 'ok' : 'http '.$status));
         if ($this->overloaded($status, $payload)) {
             throw $this->overloadFailure($status, $payload);
         }
@@ -402,7 +421,48 @@ final class GeminiProfileGenerator
         return new ProfileGenerationFailed(
             $limited ? ProfileGenerationFailed::LIMITED : ProfileGenerationFailed::UNAVAILABLE,
             $limited ? 429 : 503,
+            $this->errorDetail($payload),
         );
+    }
+
+    /** @return list<string> */
+    private function modelChain(): array
+    {
+        $primary = $this->modelName($this->model, self::DEFAULT_MODEL);
+        $chain = [$primary];
+        $configured = trim($this->fallbackModel);
+        if ($configured === '') {
+            $configured = self::DEFAULT_FALLBACK;
+        }
+        foreach (preg_split('/\s*,\s*/', $configured) ?: [] as $name) {
+            if (!is_string($name) || trim($name) === '') {
+                continue;
+            }
+            $model = $this->modelName($name, $name);
+            if (!in_array($model, $chain, true)) {
+                $chain[] = $model;
+            }
+        }
+
+        return $chain;
+    }
+
+    private function note(string $model, int $status, string $detail): void
+    {
+        if ($this->attemptLog !== null) {
+            ($this->attemptLog)($model, $status, $detail);
+        }
+    }
+
+    private function errorDetail(mixed $payload): string
+    {
+        if (!is_array($payload)) {
+            return '';
+        }
+        $status = trim((string) ($payload['error']['status'] ?? ''));
+        $message = trim((string) ($payload['error']['message'] ?? ''));
+
+        return trim($status.' '.$message);
     }
 
     private function instruction(): string

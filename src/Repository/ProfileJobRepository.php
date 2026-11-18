@@ -33,6 +33,19 @@ class ProfileJobRepository extends ServiceEntityRepository
         return $job instanceof ProfileJob ? $job : null;
     }
 
+    public function latestFor(string $artefactId): ?ProfileJob
+    {
+        $job = $this->createQueryBuilder('j')
+            ->andWhere('j.artefactId = :artefact')
+            ->setParameter('artefact', $artefactId)
+            ->orderBy('j.createdAt', \SortDirection::Descending)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $job instanceof ProfileJob ? $job : null;
+    }
+
     /** @return list<ProfileJob> */
     public function recent(int $limit = 20): array
     {

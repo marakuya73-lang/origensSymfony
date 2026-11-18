@@ -319,6 +319,47 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertSame(2, $client->getRequestsCount());
     }
 
+    public function testAnOverloadWalksTheFreeTierChainAndLogsEachTry(): void
+    {
+        $models = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$models): MockResponse {
+            $body = json_decode((string) $options['body'], true);
+            self::assertIsArray($body);
+            $models[] = $body['model'];
+            if (count($models) < 4) {
+                return new MockResponse('{"error":{"code":503,"status":"UNAVAILABLE","message":"high demand"}}', ['http_code' => 503]);
+            }
+
+            return $this->completed([
+                'title' => 'Cocar de fibra',
+                'description' => 'Uma peça pequena.',
+                'dimensions' => '',
+                'materials' => [['name' => 'Fibra', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+        $logged = [];
+        $generator = $this->generator($client, 'test-key', 'gemini-3.8-flash', 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash');
+        $generator->onAttempt(function (string $model, int $status, string $detail) use (&$logged): void {
+            $logged[] = $model.' '.$status.' '.$detail;
+        });
+
+        $profile = $generator->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
+
+        self::assertSame([
+            'gemini-3.8-flash',
+            'gemini-2.5-flash',
+            'gemini-2.5-flash-lite',
+            'gemini-2.0-flash',
+            'gemini-2.0-flash',
+        ], $models);
+        self::assertSame('Cocar de fibra', $profile->title);
+        self::assertStringContainsString('gemini-3.8-flash 503 UNAVAILABLE high demand', implode("\n", $logged));
+        self::assertStringContainsString('gemini-2.0-flash 200', implode("\n", $logged));
+    }
+
     public function testTheSameModelIsNotCalledTwice(): void
     {
         $client = new MockHttpClient([

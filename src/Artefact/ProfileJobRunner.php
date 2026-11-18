@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Artefact;
 
+use App\Entity\Artefact;
 use App\Entity\ProfileJob;
 use App\Repository\ArtefactRepository;
 use App\Repository\ProfileJobRepository;
@@ -53,7 +54,14 @@ final class ProfileJobRunner
 
     public function releaseStale(): int
     {
-        return $this->jobs->releaseStale(new \DateTimeImmutable('-2 minutes'));
+        $released = $this->jobs->releaseStale(new \DateTimeImmutable('-2 minutes'));
+        if ($released > 0) {
+            $this->em->getConnection()->executeStatement(
+                "UPDATE artefacts SET ai_status = 'queued' WHERE ai_status = 'running' AND id IN (SELECT artefact_id FROM profile_jobs WHERE status = 'queued' AND artefact_id IS NOT NULL)",
+            );
+        }
+
+        return $released;
     }
 
     public function detachWebRequest(): void
@@ -105,12 +113,15 @@ final class ProfileJobRunner
         $this->em->refresh($job);
         $job->setAttempts($job->getAttempts() + 1);
         $job->setStage($job->getAudioPath() !== null ? 'listening' : 'looking');
+        $this->markArtefact($job, 'running');
         $this->em->flush();
         $started = microtime(true);
         $this->log($job, 'start', $started);
+        $this->profiles->onAttempt(function (string $model, int $status, string $detail) use ($job, $started): void {
+            $this->log($job, $model.' '.$status.' '.$detail, $started);
+        });
 
         try {
-            $this->log($job, 'gemini', $started);
             $jpeg = $this->images->geminiJpeg($job->getImagePath());
             $job->setStage('writing');
             $this->em->flush();
@@ -146,6 +157,7 @@ final class ProfileJobRunner
             $job->setStatus('done');
             $job->setStage('done');
             $job->setError(null);
+            $this->writeArtefact($job, $turn->profile);
             $this->log($job, 'done', $started);
         } catch (ProfileGenerationFailed $exception) {
             $this->failOrRetry($job, $exception, $started);
@@ -185,19 +197,120 @@ final class ProfileJobRunner
             ProfileGenerationFailed::REJECTED_KEY,
             ProfileGenerationFailed::INVALID_MODEL,
         ], true);
-        $retry = !$permanent && in_array($exception->status(), [429, 502, 503], true) && $job->getAttempts() < 3;
+        $retry = !$permanent && in_array($exception->status(), [429, 502, 503], true) && $job->getAttempts() < 6;
         $job->setError($exception->getMessage());
         if ($retry) {
+            $seconds = 15 * (2 ** max(0, $job->getAttempts() - 1));
             $job->setStatus('queued');
             $job->setStage('queued');
-            $job->setRunAt(new \DateTimeImmutable('+'.(20 * $job->getAttempts()).' seconds'));
-            $this->log($job, 'retry '.$exception->status(), $started);
+            $job->setRunAt(new \DateTimeImmutable('+'.$seconds.' seconds'));
+            $this->markArtefact($job, 'queued');
+            $this->log($job, 'retry '.$exception->status().' '.$exception->detail().' +'.$seconds.'s', $started);
 
             return;
         }
         $job->setStatus('failed');
         $job->setStage('failed');
+        $this->markArtefact($job, 'failed');
         $this->log($job, 'failed '.$exception->getMessage(), $started);
+    }
+
+    public function queueFor(Artefact $artefact, bool $force): ?ProfileJob
+    {
+        $photo = $artefact->getImages()[0] ?? null;
+        if (!is_string($photo) || $photo === '') {
+            return null;
+        }
+        $needs = $force || $artefact->getTitle() === '' || $artefact->getDescription() === '';
+        if (!$needs) {
+            return null;
+        }
+        $existing = $this->jobs->latestFor($artefact->getId());
+        if ($existing instanceof ProfileJob && in_array($existing->getStatus(), ['queued', 'running'], true)) {
+            return $existing;
+        }
+        if ($existing instanceof ProfileJob) {
+            return $this->requeue($existing);
+        }
+
+        $job = new ProfileJob($photo);
+        $job->setArtefactId($artefact->getId());
+        $job->setNotes($artefact->getNotes());
+        $job->setAudioPath($artefact->getAudioPath());
+        $job->setAudioMime($artefact->getAudioMime());
+        $job->setForm((string) json_encode([
+            'title' => $artefact->getTitle(),
+            'description' => $artefact->getDescription(),
+            'symbolism' => $artefact->getSymbolism(),
+            'dimensions' => $artefact->getDimensions(),
+            'materials' => $artefact->getMaterials(),
+            'care' => $artefact->getCare(),
+            'handmade' => $artefact->getHandmade(),
+            'size' => $artefact->getSize(),
+        ], JSON_UNESCAPED_UNICODE));
+        $job->setTouched((string) json_encode($artefact->getManualFields(), JSON_UNESCAPED_UNICODE));
+        $artefact->setAiStatus('queued');
+        $this->em->persist($job);
+        $this->em->flush();
+
+        return $job;
+    }
+
+    public function requeue(ProfileJob $job): ProfileJob
+    {
+        if ($job->getStatus() === 'running') {
+            return $job;
+        }
+        $job->setStatus('queued');
+        $job->setStage('queued');
+        $job->setError(null);
+        $job->setAttempts(0);
+        $job->setRunAt(new \DateTimeImmutable('-1 second'));
+        $artefact = $this->artefactFor($job);
+        if ($artefact instanceof Artefact) {
+            $photo = $artefact->getImages()[0] ?? null;
+            if (is_string($photo) && $photo !== '') {
+                $job->setImagePath($photo);
+            }
+            $job->setNotes($artefact->getNotes());
+            $job->setAudioPath($artefact->getAudioPath());
+            $job->setAudioMime($artefact->getAudioMime());
+            $job->setTouched((string) json_encode($artefact->getManualFields(), JSON_UNESCAPED_UNICODE));
+        }
+        $this->markArtefact($job, 'queued');
+        $this->em->flush();
+
+        return $job;
+    }
+
+    private function writeArtefact(ProfileJob $job, GeneratedProfile $profile): void
+    {
+        $artefact = $this->artefactFor($job);
+        if (!$artefact instanceof Artefact) {
+            return;
+        }
+        $this->em->refresh($artefact);
+        $artefact->fillFromProfile($profile);
+        $artefact->setAiStatus('done');
+    }
+
+    private function markArtefact(ProfileJob $job, string $status): void
+    {
+        $artefact = $this->artefactFor($job);
+        if ($artefact instanceof Artefact) {
+            $artefact->setAiStatus($status);
+        }
+    }
+
+    private function artefactFor(ProfileJob $job): ?Artefact
+    {
+        $id = $job->getArtefactId();
+        if ($id === null || $id === '') {
+            return null;
+        }
+        $artefact = $this->artefacts->find($id);
+
+        return $artefact instanceof Artefact ? $artefact : null;
     }
 
     /** @return array{0: string, 1: string}|null */
