@@ -197,56 +197,60 @@ final class AdminToolsTest extends WebTestCase
         self::assertStringNotContainsString('GEMINI_API_KEY', (string) $client->getResponse()->getContent());
     }
 
-    public function testSelectedArtefactsExportToCsvAndXlsx(): void
+    public function testSelectedArtefactsExportToPdfAndXlsx(): void
     {
         $client = $this->ownerClient();
         $registrar = static::getContainer()->get(ArtefactRegistrar::class);
         self::assertInstanceOf(ArtefactRegistrar::class, $registrar);
+        $photo = dirname(__DIR__, 2).'/var/test-uploads/'.self::IMAGE;
+        if (!is_dir(dirname($photo)) && !mkdir(dirname($photo), 0775, true) && !is_dir(dirname($photo))) {
+            self::fail('Could not prepare the test photo.');
+        }
+        $image = imagecreatetruecolor(40, 60);
+        imagejpeg($image, $photo);
+        unset($image);
         $first = $registrar->create($this->data('Cerâmica de coração', 'Uma vasilha pequena.', 125050));
-        $second = $registrar->create($this->data('Banco', 'Peça de madeira.'));
+        $second = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted(
+            'Banco',
+            'G',
+            2,
+            'Peça de madeira.',
+            '40 cm',
+            [['name' => 'Madeira', 'note' => 'Clara.']],
+            'Guardar seco.',
+            'Feito à mão com calma.',
+            ['cccccccc-cccc-4ccc-8ccc-cccccccccccc/dddddddd-dddd-4ddd-8ddd-dddddddddddd.jpg'],
+            '2026-10-18',
+        ));
 
         $crawler = $client->request('GET', '/admin/records');
-        self::assertSelectorExists('button[name="format"][value="csv"]');
+        self::assertSelectorNotExists('button[name="format"][value="csv"]');
+        self::assertSelectorExists('button[name="format"][value="pdf"]');
         self::assertSelectorExists('button[name="format"][value="xlsx"]');
         self::assertSelectorExists('input[name="ids[]"][value="'.$first->getId().'"]');
-        self::assertStringContainsString('R$', (string) $client->getResponse()->getContent());
-        self::assertStringContainsString('1.250,50', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('z-index: 2', (string) file_get_contents(dirname(__DIR__, 2).'/assets/styles/app.css'));
         $token = $crawler->filter('input[name="_token"]')->attr('value');
         self::assertIsString($token);
 
         $client->request('POST', '/admin/records/export', [
             '_token' => $token,
-            'format' => 'csv',
+            'format' => 'pdf',
             'ids' => [$first->getId()],
         ]);
         self::assertResponseIsSuccessful();
-        $csv = (string) $client->getResponse()->getContent();
-        self::assertStringStartsWith("\xEF\xBB\xBF", $csv);
-        self::assertStringContainsString('Cerâmica de coração', $csv);
-        self::assertStringContainsString('1.250,50', $csv);
-        self::assertStringContainsString('Uma vasilha pequena.', $csv);
-        self::assertStringContainsString('/uploads/artefacts/'.self::IMAGE, $csv);
-        self::assertStringContainsString('/p/'.$first->getPublicToken(), $csv);
-        self::assertStringNotContainsString('Banco', $csv);
-        self::assertStringContainsString('text/csv', (string) $client->getResponse()->headers->get('content-type'));
-        $singleLines = preg_split("/\r\n|\n/", trim($csv)) ?: [];
-        $singleTotal = (string) end($singleLines);
-        self::assertStringStartsWith('Total;', $singleTotal);
-        self::assertStringContainsString('1.250,50', $singleTotal);
-        self::assertStringNotContainsString('sem preço', $singleTotal);
-
-        $client->request('POST', '/admin/records/export', [
-            '_token' => $token,
-            'format' => 'csv',
-            'ids' => [$first->getId(), $second->getId()],
-        ]);
-        self::assertResponseIsSuccessful();
-        $both = (string) $client->getResponse()->getContent();
-        $bothLines = preg_split("/\r\n|\n/", trim($both)) ?: [];
-        $bothTotal = (string) end($bothLines);
-        self::assertStringStartsWith('Total;', $bothTotal);
-        self::assertStringContainsString('1 sem preço', $bothTotal);
-        self::assertStringContainsString('1.250,50', $bothTotal);
+        self::assertStringContainsString('application/pdf', (string) $client->getResponse()->headers->get('content-type'));
+        $pdf = (string) $client->getResponse()->getContent();
+        self::assertStringStartsWith('%PDF', $pdf);
+        $html = static::getContainer()->get(SellerTable::class)->catalogueHtml([$first]);
+        self::assertStringContainsString('Cerâmica de coração', $html);
+        self::assertStringContainsString('Categoria 1', $html);
+        self::assertStringContainsString('R$ 1.250,50', $html);
+        self::assertStringContainsString('1 abanilhos', $html);
+        self::assertStringContainsString('data:image/jpeg;base64,', $html);
+        self::assertStringContainsString('data:image/png;base64,', $html);
+        self::assertStringNotContainsString('Banco', $html);
+        self::assertStringContainsString('page-break-inside: avoid', $html);
+        self::assertStringContainsString('table-header-group', $html);
 
         $client->request('POST', '/admin/records/export', [
             '_token' => $token,
@@ -254,35 +258,37 @@ final class AdminToolsTest extends WebTestCase
             'ids' => [$first->getId(), $second->getId()],
         ]);
         self::assertResponseIsSuccessful();
-        $xlsx = (string) $client->getResponse()->getContent();
         $path = tempnam(sys_get_temp_dir(), 'xlsx');
         self::assertIsString($path);
-        file_put_contents($path, $xlsx);
+        file_put_contents($path, (string) $client->getResponse()->getContent());
         $zip = new \ZipArchive();
         self::assertTrue($zip->open($path));
         $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
-        $styles = $zip->getFromName('xl/styles.xml');
+        $strings = $zip->getFromName('xl/sharedStrings.xml');
+        $drawing = $zip->getFromName('xl/drawings/drawing1.xml');
         $zip->close();
         unlink($path);
         self::assertIsString($sheet);
-        self::assertIsString($styles);
-        self::assertStringContainsString('Cerâmica de coração', $sheet);
-        self::assertStringContainsString('1250.50', $sheet);
-        self::assertStringContainsString('Banco', $sheet);
-        self::assertStringContainsString('<f>SUM(C2:C3)</f>', $sheet);
-        self::assertStringContainsString('1 sem preço', $sheet);
-        self::assertStringContainsString('R$', $styles);
-        foreach (SellerTable::headers() as $header) {
-            self::assertStringContainsString($header, $sheet);
-        }
+        self::assertIsString($strings);
+        self::assertIsString($drawing);
+        self::assertStringContainsString('Cerâmica de coração', $strings);
+        self::assertStringContainsString('Banco', $strings);
+        self::assertStringContainsString('Categoria 1', $strings);
+        self::assertStringContainsString('Categoria 2', $strings);
+        self::assertStringContainsString('2 abanilhos', $strings);
+        self::assertStringContainsString('1250.5', $sheet);
+        self::assertStringContainsString('SUM(E2:E3)', $sheet);
 
         $client->request('POST', '/admin/records/export', [
             '_token' => $token,
-            'format' => 'csv',
-            'ids' => [],
+            'format' => 'pdf',
         ]);
-        self::assertResponseStatusCodeSame(422);
-        self::assertSelectorTextContains('[role="alert"]', 'Selecione ao menos uma peça');
+        self::assertResponseIsSuccessful();
+        self::assertStringStartsWith('%PDF', (string) $client->getResponse()->getContent());
+        $all = static::getContainer()->get(SellerTable::class)->catalogueHtml([$second, $first]);
+        self::assertStringContainsString('2 abanilhos', $all);
+        self::assertStringContainsString('Cerâmica de coração', $all);
+        self::assertStringContainsString('Banco', $all);
     }
 
     public function testADraftIsSavedWithItsPublicLinkAndQueuesTheText(): void

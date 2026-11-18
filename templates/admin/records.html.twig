@@ -29,7 +29,7 @@
                 {% if rows is not empty %}
                     <form id="artefact-export" class="export-actions" method="post" action="{{ path('admin_artefact_export') }}" data-turbo="false">
                         <input type="hidden" name="_token" value="{{ csrf_token('export') }}">
-                        <button type="submit" class="btn btn-outline" name="format" value="csv" data-archive-export-target="submit">Exportar CSV</button>
+                        <button type="submit" class="btn btn-outline" name="format" value="pdf" data-archive-export-target="submit">Exportar PDF</button>
                         <button type="submit" class="btn btn-outline" name="format" value="xlsx" data-archive-export-target="submit">Exportar XLSX</button>
                     </form>
                 {% endif %}

@@ -268,7 +268,7 @@ a { color: inherit; }
     padding: 1.25rem 0;
 }
 .record-row > img { width: 4rem; flex: 0 0 4rem; }
-.row-check { flex: 0 0 auto; align-self: center; }
+.row-check { position: relative; z-index: 2; flex: 0 0 auto; align-self: center; }
 .row-main { flex: 1 1 100%; min-width: 0; }
 .row-open { position: absolute; inset: 0; z-index: 0; }
 .code { font-family: var(--font-mono); font-size: 0.75rem; overflow-wrap: normal; word-break: normal; }

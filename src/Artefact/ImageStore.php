@@ -169,6 +169,11 @@ final class ImageStore
         return $this->absolute($relative) !== null;
     }
 
+    public function localPath(string $relative): ?string
+    {
+        return $this->absolute($relative);
+    }
+
     /** @param list<string> $paths */
     public function assertExist(array $paths): void
     {

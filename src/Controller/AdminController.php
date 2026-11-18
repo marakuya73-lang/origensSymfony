@@ -212,29 +212,28 @@ final class AdminController extends AbstractController
         }
 
         $format = $request->request->getString('format');
-        if (!in_array($format, ['csv', 'xlsx'], true)) {
-            return $this->listing($request, 'Escolha CSV ou XLSX para exportar.', Response::HTTP_UNPROCESSABLE_ENTITY);
+        if (!in_array($format, ['pdf', 'xlsx'], true)) {
+            return $this->listing($request, 'Escolha PDF ou XLSX para exportar.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $selected = $this->artefacts->findSelected($ids);
+        $selected = $ids === [] ? $this->artefacts->recent() : $this->artefacts->findSelected($ids);
         if ($selected === []) {
-            return $this->listing($request, 'Selecione ao menos uma peça para exportar.', Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->listing($request, 'Não há peças para exportar.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $table = $this->sheet->build($selected, $request->getSchemeAndHttpHost().$request->getBasePath());
         $day = (new \DateTimeImmutable('now', new \DateTimeZone('America/Sao_Paulo')))->format('Y-m-d');
         try {
             if ($format === 'xlsx') {
-                $body = $this->files->xlsx($table['headers'], $table['rows'], $table['priceColumn']);
+                $body = $this->sheet->catalogueXlsx($selected);
                 $type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
                 $filename = 'origens-artefactos-'.$day.'.xlsx';
             } else {
-                $body = $this->files->csv($table['headers'], $table['rows']);
-                $type = 'text/csv; charset=UTF-8';
-                $filename = 'origens-artefactos-'.$day.'.csv';
+                $body = $this->sheet->cataloguePdf($selected);
+                $type = 'application/pdf';
+                $filename = 'origens-artefactos-'.$day.'.pdf';
             }
         } catch (\RuntimeException) {
-            return $this->listing($request, 'Não foi possível gerar a planilha. Tente o CSV.', Response::HTTP_UNPROCESSABLE_ENTITY);
+            return $this->listing($request, 'Não foi possível gerar o arquivo.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         $response = new Response($body);
