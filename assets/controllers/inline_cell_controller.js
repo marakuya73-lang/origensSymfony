@@ -7,6 +7,17 @@ export default class extends Controller {
     connect() {
         this.saved = this.inputTarget.value;
         this.pending = null;
+        this.onOutside = (event) => {
+            if (!(event.target instanceof Node) || this.element.contains(event.target)) {
+                return;
+            }
+            this.commit();
+        };
+        document.addEventListener('touchend', this.onOutside, true);
+    }
+
+    disconnect() {
+        document.removeEventListener('touchend', this.onOutside, true);
     }
 
     commit() {
@@ -19,7 +30,7 @@ export default class extends Controller {
     }
 
     keydown(event) {
-        if (event.key === 'Enter') {
+        if (event.key === 'Enter' || event.keyCode === 13) {
             event.preventDefault();
             this.commit();
         }

@@ -209,7 +209,8 @@ final class AdminToolsTest extends WebTestCase
         self::assertSelectorExists('button[name="format"][value="csv"]');
         self::assertSelectorExists('button[name="format"][value="xlsx"]');
         self::assertSelectorExists('input[name="ids[]"][value="'.$first->getId().'"]');
-        self::assertStringContainsString('R$ 1.250,50', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('R$', (string) $client->getResponse()->getContent());
+        self::assertStringContainsString('1.250,50', (string) $client->getResponse()->getContent());
         $token = $crawler->filter('input[name="_token"]')->attr('value');
         self::assertIsString($token);
 
@@ -322,7 +323,9 @@ final class AdminToolsTest extends WebTestCase
 
         $client->request('GET', '/admin/records');
         self::assertSelectorTextContains('body', 'Gerar novamente');
-        self::assertStringContainsString('R$ 180,00', (string) $client->getResponse()->getContent());
+        $list = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('>R$</span>', $list);
+        self::assertStringContainsString('value="180,00"', $list);
         self::assertSelectorTextContains('.backup-warning', 'Há peças gravadas depois deste backup.');
         self::assertStringNotContainsString('Há peças gravadas', $client->getCrawler()->filter('.backup-status')->text());
     }
@@ -705,7 +708,14 @@ final class AdminToolsTest extends WebTestCase
         self::assertIsString($token);
         self::assertSelectorExists('select[id^="size-"] option[value="G"]');
         self::assertSelectorExists('select[id^="category-"] option[value="3"]');
-        self::assertSelectorExists('input[id^="title-"][data-action*="blur->inline-cell#commit"]');
+        self::assertSelectorTextContains('select[id^="category-"] option[value="1"]', 'Categoria 1');
+        self::assertSelectorExists('input[id^="title-"][data-action*="focusout->inline-cell#commit"]');
+        self::assertSelectorExists('input[id^="price-"][inputmode="decimal"][placeholder="0,00"]');
+        self::assertSelectorExists('.row-price-prefix');
+        self::assertSame(9, $client->getCrawler()->filter('.record-head > span')->count());
+        self::assertSelectorTextContains('.record-head', 'Preço');
+        self::assertSelectorTextContains('.record-head', 'Status');
+        self::assertSelectorTextContains('.record-head', 'Ações');
         $publicToken = $artefact->getPublicToken();
 
         $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
@@ -717,7 +727,7 @@ final class AdminToolsTest extends WebTestCase
         $payload = json_decode((string) $client->getResponse()->getContent(), true);
         self::assertIsArray($payload);
         self::assertTrue($payload['ok']);
-        self::assertSame('R$ 99,90', $payload['value']);
+        self::assertSame('99,90', $payload['value']);
 
         $client->request('PATCH', '/admin/records/'.$artefact->getId(), [
             '_token' => $token,
@@ -848,6 +858,52 @@ final class AdminToolsTest extends WebTestCase
         self::assertSame('Sol de japu', $unchanged->getTitle());
         self::assertSame($publicToken, $unchanged->getPublicToken());
         self::assertTrue($unchanged->isManual('title'));
+    }
+
+    public function testEditorAutosaveStoresTitleAndPriceWithoutQueueingAi(): void
+    {
+        $client = $this->ownerClient();
+        $registrar = static::getContainer()->get(ArtefactRegistrar::class);
+        self::assertInstanceOf(ArtefactRegistrar::class, $registrar);
+        $artefact = $registrar->create($this->data('Cocar', 'Texto já escrito.'));
+        $client->request('GET', '/admin/records/'.$artefact->getId().'/edit');
+        self::assertSelectorExists('input[name="sale_price"][inputmode="decimal"]');
+        self::assertSelectorExists('input[name="_token"]');
+        self::assertSelectorExists('form[data-action*="focusout->artefact-editor#save"]');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+        $client->request('POST', '/admin/records/'.$artefact->getId().'/edit', [
+            '_token' => $token,
+            'title' => 'Nome no telefone',
+            'size' => 'M',
+            'category' => '1',
+            'description' => 'Texto já escrito.',
+            'dimensions' => '20 cm',
+            'materials' => [['name' => 'Barro', 'note' => 'Queimado.']],
+            'care' => 'Guardar seco.',
+            'handmade' => 'Feito à mão com calma.',
+            'images' => $artefact->getImages(),
+            'record_date' => '2026-10-18',
+            'sale_price' => '80,00',
+        ]);
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertTrue($payload['ok']);
+        self::assertNull($payload['job'] ?? null);
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->clear();
+        $stored = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $stored);
+        self::assertSame('Nome no telefone', $stored->getTitle());
+        self::assertSame(8000, $stored->getSalePriceCents());
+        self::assertSame([], static::getContainer()->get(\App\Repository\ProfileJobRepository::class)->findAll());
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/assets/controllers/artefact_editor_controller.js');
+        self::assertStringContainsString('sale_price', $script);
+        self::assertStringContainsString('element.value', $script);
     }
 
     private function browser(): KernelBrowser

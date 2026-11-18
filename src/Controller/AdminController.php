@@ -304,7 +304,7 @@ final class AdminController extends AbstractController
         }
 
         $saved = match ($field) {
-            'price' => SalePrice::brl($stored->getSalePriceCents()),
+            'price' => SalePrice::input($stored->getSalePriceCents()),
             'size' => $stored->getSize(),
             'category' => (string) $stored->getCategory(),
             'title' => $stored->getTitle(),
@@ -600,6 +600,7 @@ final class AdminController extends AbstractController
                 'titleInput' => $artefact->getTitle(),
                 'createdOn' => $artefact->createdOn(),
                 'price' => SalePrice::brl($artefact->getSalePriceCents()),
+                'priceInput' => SalePrice::input($artefact->getSalePriceCents()),
                 'size' => $artefact->getSize(),
                 'category' => $artefact->getCategory(),
                 'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,

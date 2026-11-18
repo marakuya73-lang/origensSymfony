@@ -7,6 +7,11 @@ let generation = 0;
 let current = null;
 let watching = false;
 
+function onIos() {
+    const agent = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(agent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 function stopSpeaking() {
     generation += 1;
     const previous = current;
@@ -92,6 +97,7 @@ function sentences(text) {
 export default class extends Controller {
     connect() {
         this.supported = supportsSpeech();
+        this.skipClick = false;
         if (!this.supported) {
             return;
         }
@@ -116,32 +122,55 @@ export default class extends Controller {
         if (selection && !selection.isCollapsed && this.element.contains(selection.anchorNode)) {
             return;
         }
+        if (event.type === 'click' && this.skipClick) {
+            this.skipClick = false;
+            return;
+        }
+        if (event.type === 'touchend') {
+            this.skipClick = true;
+        }
         if (current === this) {
             stopSpeaking();
             return;
         }
-        this.start();
+        this.speakNow();
     }
 
-    start() {
-        stopSpeaking();
+    speakNow() {
         const chunks = sentences(this.plain());
         if (chunks.length === 0) {
             return;
         }
-        const mine = generation;
+        const synth = window.speechSynthesis;
+        const switching = current !== null && current !== this;
+        if (current && current !== this) {
+            current.mark(false);
+        }
+        const mine = ++generation;
         current = this;
         this.mark(true);
-        window.speechSynthesis.resume();
-        const voice = pickVoice(window.speechSynthesis.getVoices());
-        chunks.forEach((chunk, index) => {
-            const utterance = new SpeechSynthesisUtterance(chunk);
+        const voice = pickVoice(synth.getVoices());
+        const make = (text, volume) => {
+            const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'pt-BR';
             utterance.rate = 0.95;
+            utterance.volume = volume;
             if (voice) {
                 utterance.voice = voice;
             }
-            utterance.onend = () => {
+            return utterance;
+        };
+        if (switching && onIos()) {
+            synth.cancel();
+            synth.speak(make(' ', 0));
+        } else if (switching) {
+            synth.cancel();
+        } else if (onIos()) {
+            synth.speak(make(' ', 0));
+        }
+        chunks.forEach((chunk, index) => {
+            const utterance = make(chunk, 1);
+            const finish = () => {
                 if (mine !== generation || index !== chunks.length - 1) {
                     return;
                 }
@@ -150,6 +179,7 @@ export default class extends Controller {
                     current = null;
                 }
             };
+            utterance.onend = finish;
             utterance.onerror = () => {
                 if (mine !== generation) {
                     return;
@@ -159,11 +189,8 @@ export default class extends Controller {
                     current = null;
                 }
             };
-            window.speechSynthesis.speak(utterance);
+            synth.speak(utterance);
         });
-        if (window.speechSynthesis.paused) {
-            window.speechSynthesis.resume();
-        }
     }
 
     plain() {

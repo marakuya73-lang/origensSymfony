@@ -13,6 +13,40 @@ export default class extends Controller {
         this.touched = new Set();
         this.element.addEventListener('input', (event) => this.noteTouch(event));
         this.element.addEventListener('change', (event) => this.noteTouch(event));
+        this.element.addEventListener('keydown', (event) => this.onKey(event));
+        this.onOutside = (event) => {
+            const active = document.activeElement;
+            if (!(active instanceof HTMLElement) || !this.element.contains(active)) {
+                return;
+            }
+            if (event.target instanceof Node && this.element.contains(event.target)) {
+                return;
+            }
+            this.persist();
+        };
+        document.addEventListener('touchend', this.onOutside, true);
+        this.element.querySelector('[data-submit]')?.addEventListener('touchend', () => this.blurFocused());
+    }
+
+    disconnect() {
+        document.removeEventListener('touchend', this.onOutside, true);
+    }
+
+    onKey(event) {
+        if (event.key !== 'Enter' && event.keyCode !== 13) {
+            return;
+        }
+        if (!(event.target instanceof HTMLInputElement) || event.target.type === 'file') {
+            return;
+        }
+        this.persist();
+    }
+
+    blurFocused() {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && this.element.contains(active)) {
+            active.blur();
+        }
     }
 
     noteTouch(event) {
@@ -32,7 +66,7 @@ export default class extends Controller {
         if (target.closest('[data-material]')) {
             return 'materials';
         }
-        if (['title', 'description', 'symbolism', 'dimensions', 'care', 'handmade', 'size'].includes(target.name)) {
+        if (['title', 'description', 'symbolism', 'dimensions', 'care', 'handmade', 'size', 'category', 'sale_price'].includes(target.name)) {
             return target.name;
         }
 
@@ -63,6 +97,7 @@ export default class extends Controller {
     }
 
     guard(event) {
+        this.blurFocused();
         if (this.uploading) {
             event.preventDefault();
         }
@@ -392,8 +427,10 @@ export default class extends Controller {
 
         this.errorTarget.hidden = true;
         this.setStatus('Salvando…');
-        const body = new FormData(this.element);
-        body.delete('generate');
+        const body = new FormData();
+        for (const [key, value] of this.entries()) {
+            body.append(key, value);
+        }
         const response = await fetch(this.element.action, {
             method: 'POST',
             body,
@@ -444,16 +481,26 @@ export default class extends Controller {
         return value('title') !== '' && value('record_date') !== '' && value('care') !== '' && value('handmade') !== '' && names && this.photos().length > 0;
     }
 
-    snapshot() {
-        const parts = [];
-        for (const [key, value] of new FormData(this.element).entries()) {
-            if (value instanceof File) {
+    entries() {
+        const rows = [];
+        for (const element of this.element.elements) {
+            if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) {
                 continue;
             }
-            parts.push(`${key}=${value}`);
+            if (!element.name || element.disabled || element.type === 'file' || element.name === 'generate') {
+                continue;
+            }
+            if ((element.type === 'checkbox' || element.type === 'radio') && !element.checked) {
+                continue;
+            }
+            rows.push([element.name, element.value]);
         }
 
-        return parts.join('&');
+        return rows;
+    }
+
+    snapshot() {
+        return this.entries().map(([key, value]) => `${key}=${value}`).join('&');
     }
 
     setStatus(message) {

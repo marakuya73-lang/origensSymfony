@@ -217,10 +217,12 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertStringNotContainsString('class="nfc"', $html);
         self::assertStringNotContainsString('nfc-url', $html);
         self::assertStringNotContainsString('class="symbolism"', $html);
-        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action="click->read-aloud#toggle"]');
+        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action*="touchend->read-aloud#toggle"]');
 
         $client->request('GET', '/admin/records');
-        self::assertStringContainsString('R$ 987,65', (string) $client->getResponse()->getContent());
+        $list = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('>R$</span>', $list);
+        self::assertStringContainsString('value="987,65"', $list);
         $edit = $client->getCrawler()->filter('a[aria-label="Editar M-CAT1-001"]')->attr('href');
         self::assertIsString($edit);
         $client->request('GET', $edit);
@@ -261,8 +263,9 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertStringContainsString('Chuva fina e pena clara firmam quem está de passagem.', $html);
         self::assertStringNotContainsString('class="nfc"', $html);
         self::assertStringNotContainsString('987', $html);
-        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action="click->read-aloud#toggle"]');
-        self::assertSelectorExists('p.symbolism[data-controller="read-aloud"][data-action="click->read-aloud#toggle"]');
+        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action*="touchend->read-aloud#toggle"]');
+        self::assertSelectorExists('p.symbolism[data-controller="read-aloud"][data-action*="touchend->read-aloud#toggle"]');
+        self::assertStringContainsString('read_aloud_controller', $html);
         self::assertSelectorNotExists('p.lede button, p.symbolism button, p.lede a, p.symbolism a');
         $spoken = '';
         $client->getCrawler()->filter('p.lede[data-controller="read-aloud"], p.symbolism')->each(function ($node) use (&$spoken): void {
@@ -279,6 +282,9 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertStringContainsString('voiceschanged', $script);
         self::assertStringContainsString('pagehide', $script);
         self::assertStringContainsString('natural', $script);
+        self::assertStringContainsString('touchend', $script);
+        self::assertStringNotContainsString('setTimeout', $script);
+        self::assertSame(1, substr_count($script, 'speechSynthesis.cancel'));
     }
 
     private function browser(): KernelBrowser
