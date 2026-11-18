@@ -217,6 +217,7 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertStringNotContainsString('class="nfc"', $html);
         self::assertStringNotContainsString('nfc-url', $html);
         self::assertStringNotContainsString('class="symbolism"', $html);
+        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action="click->read-aloud#toggle"]');
 
         $client->request('GET', '/admin/records');
         self::assertStringContainsString('R$ 987,65', (string) $client->getResponse()->getContent());
@@ -260,6 +261,24 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertStringContainsString('Chuva fina e pena clara firmam quem está de passagem.', $html);
         self::assertStringNotContainsString('class="nfc"', $html);
         self::assertStringNotContainsString('987', $html);
+        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action="click->read-aloud#toggle"]');
+        self::assertSelectorExists('p.symbolism[data-controller="read-aloud"][data-action="click->read-aloud#toggle"]');
+        self::assertSelectorNotExists('p.lede button, p.symbolism button, p.lede a, p.symbolism a');
+        $spoken = '';
+        $client->getCrawler()->filter('p.lede[data-controller="read-aloud"], p.symbolism')->each(function ($node) use (&$spoken): void {
+            $spoken .= $node->outerHtml();
+            self::assertNull($node->attr('title'));
+            self::assertNull($node->attr('aria-label'));
+        });
+        self::assertStringNotContainsString('Ouvir', $spoken);
+        self::assertStringNotContainsString('<button', $spoken);
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/assets/controllers/read_aloud_controller.js');
+        self::assertStringContainsString('speechSynthesis', $script);
+        self::assertStringContainsString("utterance.lang = 'pt-BR'", $script);
+        self::assertStringContainsString('utterance.rate = 0.95', $script);
+        self::assertStringContainsString('voiceschanged', $script);
+        self::assertStringContainsString('pagehide', $script);
+        self::assertStringContainsString('natural', $script);
     }
 
     private function browser(): KernelBrowser
