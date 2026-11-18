@@ -593,6 +593,64 @@ final class AdminToolsTest extends WebTestCase
         self::assertSame('Nome dela', $artefact->getTitle());
     }
 
+    public function testSavedAudioIsConfirmedByReadingTheFileBack(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        self::assertSelectorTextContains('[data-profile-assist-target="savedAudioLabel"]', 'Sem áudio');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => 'Com áudio',
+            'size' => 'M',
+            'category' => '1',
+            'description' => 'Texto.',
+            'materials' => [['name' => 'Pedra', 'note' => 'Verde.']],
+            'audio_ms' => '42000',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+            'audio' => $this->wav(),
+        ]);
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertTrue($payload['audio']['stored']);
+        self::assertMatchesRegularExpression('/Áudio gravado · 0:42 · \d{2}\/\d{2} \d{2}:\d{2}/', (string) $payload['audio']['label']);
+        self::assertNull($payload['job']);
+
+        $client->request('GET', (string) $payload['audio']['url']);
+        self::assertResponseIsSuccessful();
+        $client->request('GET', '/admin/records');
+        self::assertSelectorTextContains('.audio-badge', 'Tem áudio');
+
+        $saved = static::getContainer()->get(\App\Repository\ArtefactRepository::class);
+        self::assertInstanceOf(\App\Repository\ArtefactRepository::class, $saved);
+        $artefact = $saved->find($payload['id']);
+        self::assertInstanceOf(\App\Entity\Artefact::class, $artefact);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+        $client->request('POST', (string) $payload['editUrl'], [
+            '_token' => $token,
+            'title' => 'Com áudio',
+            'size' => 'M',
+            'category' => '1',
+            'description' => 'Texto.',
+            'materials' => [['name' => 'Pedra', 'note' => 'Verde.']],
+            'images' => $artefact->getImages(),
+            'remove_audio' => '1',
+            'record_date' => '2026-11-18',
+        ]);
+        self::assertResponseIsSuccessful();
+        $removed = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($removed);
+        self::assertFalse($removed['audio']['stored']);
+        self::assertSame('Sem áudio', $removed['audio']['label']);
+    }
+
     private function browser(): KernelBrowser
     {
         $client = static::createClient();

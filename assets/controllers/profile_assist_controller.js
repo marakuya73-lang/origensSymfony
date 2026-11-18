@@ -4,7 +4,7 @@ const MAX_AUDIO = 10 * 1024 * 1024;
 const MAX_RECORDING = 180000;
 
 export default class extends Controller {
-    static targets = ['notes', 'generate', 'toast', 'toastMessage', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume', 'link', 'badge', 'cancel'];
+    static targets = ['notes', 'generate', 'toast', 'toastMessage', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume', 'link', 'badge', 'cancel', 'savedAudioLabel', 'savedAudioPlayer', 'savedAudioActions', 'audioMs', 'removeAudio'];
     static values = { url: String, token: String };
 
     connect() {
@@ -16,6 +16,12 @@ export default class extends Controller {
         this.activeSlot = null;
         this.onVisibility = () => this.handleVisibility();
         document.addEventListener('visibilitychange', this.onVisibility);
+        this.onSaved = (event) => {
+            if (event.detail?.audio) {
+                this.showSavedAudio(event.detail.audio);
+            }
+        };
+        this.element.addEventListener('origens:saved', this.onSaved);
         this.resumeJob();
         if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
             this.element.querySelectorAll('.record-btn').forEach((button) => {
@@ -186,7 +192,7 @@ export default class extends Controller {
         this.slots[slot].file = null;
         this.slots[slot].durationMs = this.capturedMs || 0;
         if (slot === 'intro') {
-            this.attachAudio(new File([blob], 'audio.webm', { type: blob.type || 'audio/webm' }));
+            this.attachAudio(new File([blob], 'audio.webm', { type: blob.type || 'audio/webm' }), this.capturedMs || 0);
         }
         this.showReady(slot, blob);
         this.paintIdle(slot, button);
@@ -591,7 +597,68 @@ export default class extends Controller {
             this.linkTarget.hidden = false;
             this.linkTarget.textContent = payload.url;
         }
-        this.paintBadge(payload.ai || 'aguardando IA');
+        if (payload.ai) {
+            this.paintBadge(payload.ai);
+        }
+        if (payload.audio) {
+            this.showSavedAudio(payload.audio);
+        }
+    }
+
+    showSavedAudio(audio) {
+        if (this.hasSavedAudioLabelTarget) {
+            this.savedAudioLabelTarget.textContent = audio?.stored ? audio.label : 'Sem áudio';
+        }
+        const stored = audio?.stored === true && typeof audio.url === 'string' && audio.url !== '';
+        if (this.hasSavedAudioPlayerTarget) {
+            this.savedAudioPlayerTarget.hidden = !stored;
+            if (stored) {
+                this.savedAudioPlayerTarget.src = audio.url;
+            } else {
+                this.savedAudioPlayerTarget.removeAttribute('src');
+            }
+        }
+        if (this.hasSavedAudioActionsTarget) {
+            this.savedAudioActionsTarget.hidden = !stored;
+        }
+        if (this.hasRemoveAudioTarget) {
+            this.removeAudioTarget.value = '';
+        }
+    }
+
+    rerecord(event) {
+        event.preventDefault();
+        this.element.querySelector('[data-slot="intro"] .record-btn')?.click();
+    }
+
+    async removeSavedAudio(event) {
+        event.preventDefault();
+        if (this.hasRemoveAudioTarget) {
+            this.removeAudioTarget.value = '1';
+        }
+        this.slots.intro.clip = null;
+        this.slots.intro.file = null;
+        if (!this.element.dataset.recordId) {
+            this.showSavedAudio({ stored: false, label: 'Sem áudio' });
+            return;
+        }
+        const body = new FormData(this.element);
+        body.delete('generate');
+        body.delete('audio');
+        body.set('remove_audio', '1');
+        const response = await fetch(this.element.action, {
+            method: 'POST',
+            body,
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json', 'X-Origens-Autosave': '1' },
+        });
+        let payload = {};
+        try {
+            payload = await response.json();
+        } catch {
+            payload = {};
+        }
+        this.showSavedAudio(payload.audio || { stored: false, label: 'Sem áudio' });
     }
 
     paintBadge(label) {
@@ -602,9 +669,12 @@ export default class extends Controller {
         this.badgeTarget.textContent = label;
     }
 
-    attachAudio(file) {
+    attachAudio(file, durationMs = 0) {
         if (!(file instanceof Blob) || file.size <= 0) {
             return;
+        }
+        if (this.hasAudioMsTarget && durationMs > 0) {
+            this.audioMsTarget.value = String(Math.round(durationMs));
         }
         let input = this.element.querySelector('input[data-saved-audio]');
         if (!(input instanceof HTMLInputElement)) {

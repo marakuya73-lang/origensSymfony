@@ -20,11 +20,11 @@ final class ArtefactRegistrar
     /**
      * @param list<string> $touched
      */
-    public function create(ArtefactData $data, array $touched = [], string $notes = '', ?string $audioPath = null, ?string $audioMime = null): Artefact
+    public function create(ArtefactData $data, array $touched = [], string $notes = '', ?string $audioPath = null, ?string $audioMime = null, ?int $audioDurationMs = null): Artefact
     {
         try {
             /** @var Artefact $artefact */
-            $artefact = $this->em->wrapInTransaction(function () use ($data, $touched, $notes, $audioPath, $audioMime): Artefact {
+            $artefact = $this->em->wrapInTransaction(function () use ($data, $touched, $notes, $audioPath, $audioMime, $audioDurationMs): Artefact {
                 $artefact = new Artefact();
                 $artefact->setSize($data->size);
                 $artefact->setCategory($data->category);
@@ -32,6 +32,7 @@ final class ArtefactRegistrar
                 $artefact->setNotes($notes);
                 $artefact->setAudioPath($audioPath);
                 $artefact->setAudioMime($audioMime);
+                $artefact->setAudioDurationMs($audioDurationMs);
                 $artefact->setCode($this->nextCode($data->size, $data->category));
                 $artefact->setPublicToken($this->nextToken());
                 $this->em->persist($artefact);
@@ -50,7 +51,7 @@ final class ArtefactRegistrar
      *
      * @return list<string> Image paths removed from the record
      */
-    public function update(Artefact $artefact, ArtefactData $data, array $touched = [], ?string $notes = null, ?string $audioPath = null, ?string $audioMime = null): array
+    public function update(Artefact $artefact, ArtefactData $data, array $touched = [], ?string $notes = null, ?string $audioPath = null, ?string $audioMime = null, bool $clearAudio = false, ?int $audioDurationMs = null): array
     {
         $token = $artefact->getPublicToken();
         $removed = array_values(array_diff($artefact->getImages(), $data->images));
@@ -58,9 +59,14 @@ final class ArtefactRegistrar
         if ($notes !== null) {
             $artefact->setNotes($notes);
         }
-        if ($audioPath !== null) {
+        if ($clearAudio) {
+            $artefact->setAudioPath(null);
+            $artefact->setAudioMime(null);
+            $artefact->setAudioDurationMs(null);
+        } elseif ($audioPath !== null) {
             $artefact->setAudioPath($audioPath);
             $artefact->setAudioMime($audioMime);
+            $artefact->setAudioDurationMs($audioDurationMs);
         }
         if ($artefact->getPublicToken() !== $token || $token === '') {
             throw new InvalidArtefact('O link público da peça não pode mudar.');

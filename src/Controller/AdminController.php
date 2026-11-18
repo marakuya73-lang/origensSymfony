@@ -250,6 +250,23 @@ final class AdminController extends AbstractController
         return $this->save($request, null);
     }
 
+    #[Route('/admin/records/{id}/audio', name: 'admin_artefact_audio', methods: ['GET'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
+    public function artefactAudio(string $id): BinaryFileResponse
+    {
+        $artefact = $this->findArtefact($id);
+        $state = $this->jobRunner->confirmedAudio($artefact);
+        $path = $this->jobRunner->audioFile($artefact->getAudioPath());
+        if ($state['stored'] !== true || $path === null) {
+            throw $this->createNotFoundException();
+        }
+        $response = new BinaryFileResponse($path);
+        $response->headers->set('Content-Type', $state['mime'] ?? 'application/octet-stream');
+        $response->headers->set('Cache-Control', 'private, no-store');
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, 'audio');
+
+        return $response;
+    }
+
     #[Route('/admin/records/{id}/edit', name: 'admin_artefact_edit', methods: ['GET', 'POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
     public function edit(Request $request, string $id): Response
     {
@@ -404,19 +421,25 @@ final class AdminController extends AbstractController
         }
         $audioPath = null;
         $audioMime = null;
+        $audioDuration = null;
+        $clearAudio = $request->request->getString('remove_audio') === '1';
         $audio = AudioClip::read($request->files->get('audio'));
         if ($audio !== null) {
+            $clearAudio = false;
             [$bytes, $audioMime] = $audio;
+            $reported = $request->request->getInt('audio_ms');
+            $audioDuration = $reported > 0 ? $reported : null;
             try {
                 $audioPath = $this->jobRunner->storeAudio($bytes, $audioMime);
             } catch (InvalidArtefact $exception) {
                 return $this->saveFailed($autosave, $current, $submission->draft, $exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
             }
         }
+        $previousAudio = $current?->getAudioPath();
 
         try {
             if ($current instanceof Artefact) {
-                foreach ($this->registrar->update($current, $submission->data, $touched, $notes, $audioPath, $audioMime) as $path) {
+                foreach ($this->registrar->update($current, $submission->data, $touched, $notes, $audioPath, $audioMime, $clearAudio, $audioDuration) as $path) {
                     $this->images->delete($path);
                 }
                 $artefact = $this->artefacts->find($current->getId());
@@ -424,11 +447,15 @@ final class AdminController extends AbstractController
                     throw new InvalidArtefact('Não foi possível gravar a peça. O arquivo não confirmou a gravação.');
                 }
             } else {
-                $artefact = $this->registrar->create($submission->data, $touched, $notes, $audioPath, $audioMime);
+                $artefact = $this->registrar->create($submission->data, $touched, $notes, $audioPath, $audioMime, $audioDuration);
             }
         } catch (UniqueConstraintViolationException|InvalidArtefact) {
             return $this->saveFailed($autosave, $current, $submission->draft, 'Não foi possível salvar a peça. Nenhum código existente foi alterado.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+        if ($previousAudio !== null && $previousAudio !== $artefact->getAudioPath()) {
+            $this->jobRunner->forgetAudio($previousAudio);
+        }
+        $audioState = $this->audioState($artefact);
 
         $generate = !$autosave && $request->request->getString('generate') === '1';
         $job = null;
@@ -451,6 +478,7 @@ final class AdminController extends AbstractController
                 'url' => $url,
                 'ai' => $artefact->aiLabel(),
                 'job' => $job?->getId(),
+                'audio' => $audioState,
                 'editUrl' => $this->generateUrl('admin_artefact_edit', ['id' => $artefact->getId()]),
             ]);
         }
@@ -473,6 +501,21 @@ final class AdminController extends AbstractController
         return $this->editor($current, $draft, $error, $status);
     }
 
+    /** @return array{stored: bool, label: string, url: ?string} */
+    private function audioState(?Artefact $artefact): array
+    {
+        if (!$artefact instanceof Artefact) {
+            return ['stored' => false, 'label' => 'Sem áudio', 'url' => null];
+        }
+        $state = $this->jobRunner->confirmedAudio($artefact);
+
+        return [
+            'stored' => $state['stored'],
+            'label' => $state['label'],
+            'url' => $state['stored'] ? $this->generateUrl('admin_artefact_audio', ['id' => $artefact->getId()]) : null,
+        ];
+    }
+
     private function editor(?Artefact $current, ArtefactDraft $draft, string $error, int $status = 200): Response
     {
         $token = $current?->getPublicToken() ?? '';
@@ -491,6 +534,7 @@ final class AdminController extends AbstractController
             'uploadUrl' => $this->generateUrl('admin_artefact_upload'),
             'profileUrl' => $this->generateUrl('admin_artefact_profile'),
             'recordId' => $current?->getId() ?? '',
+            'audio' => $this->audioState($current),
         ], $status);
     }
 
@@ -514,6 +558,7 @@ final class AdminController extends AbstractController
                 'path' => ArtefactRules::isValidToken($token) ? ArtefactRules::publicPath($token) : '',
                 'aiLabel' => $artefact->aiLabel(),
                 'aiStatus' => $artefact->getAiStatus(),
+                'hasAudio' => $this->jobRunner->confirmedAudio($artefact)['stored'],
             ];
         }
 

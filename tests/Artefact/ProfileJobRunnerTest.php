@@ -207,6 +207,94 @@ final class ProfileJobRunnerTest extends KernelTestCase
         self::assertNotSame('', $kept->getDescription());
     }
 
+    public function testFilledFieldsSurviveAndEmptyOnesAreWritten(): void
+    {
+        $round = 0;
+        $this->useGenerator(new MockHttpClient(function () use (&$round): MockResponse {
+            ++$round;
+            $pass = $round <= 2 ? 'primeiro' : 'segundo';
+
+            return new MockResponse((string) json_encode([
+                'status' => 'completed',
+                'steps' => [[
+                    'type' => 'model_output',
+                    'content' => [[
+                        'type' => 'text',
+                        'text' => json_encode([
+                            'title' => 'Título '.$pass,
+                            'description' => 'Descrição '.$pass,
+                            'symbolism' => 'Símbolo '.$pass,
+                            'dimensions' => 'cerca de 12 cm '.$pass,
+                            'materials' => [
+                                ['name' => 'Pedra', 'note' => 'Nota '.$pass],
+                                ['name' => 'Palha', 'note' => 'Não entra'],
+                            ],
+                            'care' => ['Cuidado '.$pass],
+                            'handmade' => 'Mão '.$pass,
+                            'size' => 'P',
+                            'questions' => [],
+                            'complete' => true,
+                            'changed' => [],
+                        ], JSON_THROW_ON_ERROR),
+                    ]],
+                ]],
+            ], JSON_THROW_ON_ERROR));
+        }));
+        $this->job();
+        $relative = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/ffffffff-ffff-4fff-8fff-ffffffffffff.jpg';
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $registrar = static::getContainer()->get(\App\Artefact\ArtefactRegistrar::class);
+        self::assertInstanceOf(\App\Artefact\ArtefactRegistrar::class, $registrar);
+        $artefact = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted(
+            'Nome dela',
+            'G',
+            2,
+            '',
+            '',
+            [['name' => 'Pedra', 'note' => '']],
+            'Cuidado dela.',
+            'Mão dela.',
+            [$relative],
+            '2026-11-18',
+            25000,
+        ));
+        $job = new ProfileJob($relative);
+        $job->setArtefactId($artefact->getId());
+        $em->persist($job);
+        $em->flush();
+        $runner = $this->runner();
+        $runner->execute($job);
+        $em->clear();
+        $once = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $once);
+        self::assertSame('Nome dela', $once->getTitle());
+        self::assertSame('Descrição primeiro', $once->getDescription());
+        self::assertSame('Símbolo primeiro', $once->getSymbolism());
+        self::assertSame('cerca de 12 cm primeiro', $once->getDimensions());
+        self::assertSame([['name' => 'Pedra', 'note' => 'Nota primeiro']], $once->getMaterials());
+        self::assertSame(['Cuidado dela.'], $once->getCare());
+        self::assertSame('Mão dela.', $once->getHandmade());
+        self::assertSame('G', $once->getSize());
+        self::assertSame(2, $once->getCategory());
+        self::assertSame(25000, $once->getSalePriceCents());
+
+        $storedJob = $em->find(ProfileJob::class, $job->getId());
+        self::assertInstanceOf(ProfileJob::class, $storedJob);
+        $runner->requeue($storedJob);
+        $runner->execute($storedJob);
+        $em->clear();
+        $twice = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $twice);
+        self::assertSame('Nome dela', $twice->getTitle());
+        self::assertSame('Descrição primeiro', $twice->getDescription());
+        self::assertSame('Símbolo primeiro', $twice->getSymbolism());
+        self::assertSame([['name' => 'Pedra', 'note' => 'Nota primeiro']], $twice->getMaterials());
+        self::assertSame('G', $twice->getSize());
+        self::assertSame(2, $twice->getCategory());
+        self::assertSame(25000, $twice->getSalePriceCents());
+    }
+
     public function testAJobReadsThePieceAsItIsWhenItRuns(): void
     {
         $seen = [];

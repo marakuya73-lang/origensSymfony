@@ -223,8 +223,20 @@ final class ProfileJobRunner
 
                 return;
             }
+            $this->writeArtefact($job, $turn->profile);
+            $kept = $this->artefactFor($job);
+            $profile = $kept instanceof Artefact ? [
+                'title' => $kept->getTitle(),
+                'description' => $kept->getDescription(),
+                'symbolism' => $kept->getSymbolism(),
+                'dimensions' => $kept->getDimensions(),
+                'materials' => $kept->getMaterials(),
+                'care' => $kept->getCare(),
+                'handmade' => $kept->getHandmade(),
+                'size' => $kept->getSize(),
+            ] : $profile->toArray();
             $encoded = json_encode([
-                'profile' => $profile->toArray(),
+                'profile' => $profile,
                 'questions' => $turn->questions,
                 'complete' => $turn->complete,
                 'changed' => $turn->changed,
@@ -233,7 +245,6 @@ final class ProfileJobRunner
             $job->setStatus('done');
             $job->setStage('done');
             $job->setError(null);
-            $this->writeArtefact($job, $turn->profile);
             $this->log($job, 'done', $started);
         } catch (ProfileGenerationFailed $exception) {
             $this->failOrRetry($job, $exception, $started);
@@ -264,6 +275,75 @@ final class ProfileJobRunner
         }
 
         return 'audio/'.$name;
+    }
+
+    public function audioFile(?string $relative): ?string
+    {
+        if ($relative === null || $relative === '' || str_contains($relative, '..')) {
+            return null;
+        }
+        $full = dirname($this->uploads).'/'.$relative;
+        $root = realpath(dirname($this->uploads).'/audio');
+        $file = realpath($full);
+        if ($root === false || $file === false || !str_starts_with($file, $root) || !is_file($file)) {
+            return null;
+        }
+
+        return $file;
+    }
+
+    public function forgetAudio(?string $relative): void
+    {
+        if ($relative === null || $relative === '' || str_contains($relative, '..')) {
+            return;
+        }
+        $full = dirname($this->uploads).'/'.$relative;
+        $root = realpath(dirname($this->uploads).'/audio');
+        $file = realpath($full);
+        if ($root === false || $file === false || !str_starts_with($file, $root)) {
+            return;
+        }
+        if (is_file($file)) {
+            unlink($file);
+        }
+    }
+
+    /** @return array{stored: bool, label: string, mime: ?string} */
+    public function confirmedAudio(Artefact $artefact): array
+    {
+        $empty = ['stored' => false, 'label' => 'Sem áudio', 'mime' => null];
+        $relative = $artefact->getAudioPath();
+        if ($relative === null || $relative === '' || str_contains($relative, '..')) {
+            return $empty;
+        }
+        $full = dirname($this->uploads).'/'.$relative;
+        clearstatcache(true, $full);
+        $size = is_file($full) ? filesize($full) : false;
+        if ($size === false || $size < 1) {
+            return $empty;
+        }
+        $sample = file_get_contents($full, false, null, 0, 8);
+        if (!is_string($sample) || $sample === '') {
+            return $empty;
+        }
+        $mtime = filemtime($full);
+        $when = is_int($mtime)
+            ? (new \DateTimeImmutable('@'.$mtime))->setTimezone(new \DateTimeZone('America/Sao_Paulo'))->format('d/m H:i')
+            : '';
+        $clock = $this->clock($artefact->getAudioDurationMs());
+        $label = 'Áudio gravado'.($clock !== '' ? ' · '.$clock : '').($when !== '' ? ' · '.$when : '');
+
+        return ['stored' => true, 'label' => $label, 'mime' => $artefact->getAudioMime()];
+    }
+
+    private function clock(?int $milliseconds): string
+    {
+        if ($milliseconds === null || $milliseconds < 1) {
+            return '';
+        }
+        $seconds = (int) round($milliseconds / 1000);
+
+        return intdiv($seconds, 60).':'.str_pad((string) ($seconds % 60), 2, '0', STR_PAD_LEFT);
     }
 
     private function failOrRetry(ProfileJob $job, ProfileGenerationFailed $exception, float $started): void

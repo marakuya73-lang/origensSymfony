@@ -105,6 +105,16 @@
                             <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio" title="Remover áudio">{{ icons.svg('trash') }}</button>
                         </div>
                     </div>
+                    <div class="saved-audio" data-profile-assist-target="savedAudio">
+                        <p data-profile-assist-target="savedAudioLabel">{{ audio.label }}</p>
+                        <audio controls preload="metadata" data-profile-assist-target="savedAudioPlayer" {% if not audio.stored %}hidden{% endif %}{% if audio.url %} src="{{ audio.url }}"{% endif %}></audio>
+                        <div class="assist-actions" data-profile-assist-target="savedAudioActions" {% if not audio.stored %}hidden{% endif %}>
+                            <button type="button" class="btn btn-ghost" data-action="profile-assist#rerecord">Regravar</button>
+                            <button type="button" class="btn btn-ghost" data-action="profile-assist#removeSavedAudio">Remover</button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="audio_ms" value="" data-profile-assist-target="audioMs">
+                    <input type="hidden" name="remove_audio" value="" data-profile-assist-target="removeAudio">
                     <p class="hint">O áudio é opcional.</p>
                     <div class="assist-actions">
                         <button type="button" class="btn generate-btn" data-profile-assist-target="generate" data-action="profile-assist#saveAndGenerate"><span data-generate-label>Salvar e gerar com IA</span></button>
