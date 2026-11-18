@@ -73,7 +73,7 @@
                             <span class="sr-only">Selecionar {{ row.code }}</span>
                         </label>
                         {% if row.image %}
-                            <img src="{{ asset(row.image) }}" alt="{{ row.title }}">
+                            <img src="{{ asset(photo_src(row.image, 400)) }}" width="400" height="500" alt="{{ row.title }}" loading="lazy">
                         {% else %}
                             <span></span>
                         {% endif %}

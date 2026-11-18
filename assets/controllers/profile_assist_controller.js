@@ -16,6 +16,7 @@ export default class extends Controller {
         this.activeSlot = null;
         this.onVisibility = () => this.handleVisibility();
         document.addEventListener('visibilitychange', this.onVisibility);
+        this.resumeJob();
         if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
             this.element.querySelectorAll('.record-btn').forEach((button) => {
                 button.hidden = true;
@@ -308,10 +309,11 @@ export default class extends Controller {
             body.append('audio', audio, name);
         }
 
+        this.pending = { first, answer, hadAudio: Boolean(audio) };
         this.setBusy(true);
         this.dismissToast();
         this.clearMessage();
-        this.setStatus(first ? 'Gerando…' : 'Atualizando…');
+        this.setStatus(first ? 'Na fila…' : 'Atualizando…');
         try {
             const response = await fetch(this.urlValue, {
                 method: 'POST',
@@ -325,24 +327,98 @@ export default class extends Controller {
             } catch {
                 payload = {};
             }
-            if (!response.ok || !payload.ok || !payload.profile) {
+            if (!response.ok || !payload.ok || !payload.job) {
+                this.setBusy(false);
                 this.showError(payload.error || 'Não foi possível gerar o perfil agora. Tente novamente em instantes.');
                 return;
             }
-            editor.applyProfile(payload.profile);
-            this.remember(first, answer, Boolean(audio), payload);
-            this.discardQuiet(first ? 'intro' : 'reply');
-            if (this.hasReplyTarget) {
-                this.replyTarget.value = '';
-            }
-            this.showChat(payload);
-            this.openPanel();
-            this.setStatus(payload.complete ? 'Perfil completo. Nada foi salvo.' : 'Perfil atualizado. Nada foi salvo.');
+            this.rememberJob(payload.job);
+            this.poll(payload.job);
         } catch {
-            this.showError('Não foi possível gerar o perfil agora. Tente novamente em instantes.');
-        } finally {
             this.setBusy(false);
+            this.showError('Não foi possível gerar o perfil agora. Tente novamente em instantes.');
         }
+    }
+
+    rememberJob(id) {
+        const pending = this.pending || { first: true, answer: '', hadAudio: false };
+        localStorage.setItem('origens-profile-job', JSON.stringify({ id, ...pending }));
+    }
+
+    resumeJob() {
+        let saved = null;
+        try {
+            saved = JSON.parse(localStorage.getItem('origens-profile-job') || 'null');
+        } catch {
+            saved = null;
+        }
+        if (!saved?.id) {
+            return;
+        }
+        this.pending = { first: saved.first !== false, answer: saved.answer || '', hadAudio: Boolean(saved.hadAudio) };
+        this.setBusy(true);
+        this.poll(saved.id);
+    }
+
+    poll(id) {
+        window.clearTimeout(this.jobTimer);
+        this.jobTimer = window.setTimeout(() => this.readJob(id), 2500);
+    }
+
+    async readJob(id) {
+        try {
+            const response = await fetch(`${this.urlValue}/${id}`, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            });
+            let payload = {};
+            try {
+                payload = await response.json();
+            } catch {
+                payload = {};
+            }
+            if (!response.ok || !payload.ok) {
+                this.setBusy(false);
+                this.showError(payload.error || 'Não foi possível gerar o perfil agora. Tente novamente em instantes.');
+                return;
+            }
+            if (payload.status === 'done' && payload.profile) {
+                localStorage.removeItem('origens-profile-job');
+                this.finish(payload);
+                return;
+            }
+            if (payload.status === 'failed') {
+                localStorage.removeItem('origens-profile-job');
+                this.setBusy(false);
+                this.showError(payload.error || 'Não foi possível gerar o perfil.');
+                return;
+            }
+            this.setStatus(payload.message || 'Gerando…');
+            const label = this.hasGenerateTarget ? this.generateTarget.querySelector('[data-generate-label]') : null;
+            if (label && payload.message) {
+                label.textContent = payload.message;
+            }
+            this.poll(id);
+        } catch {
+            this.poll(id);
+        }
+    }
+
+    finish(payload) {
+        const editor = this.application.getControllerForElementAndIdentifier(this.element, 'artefact-editor');
+        const pending = this.pending || { first: true, answer: '', hadAudio: false };
+        if (editor && typeof editor.applyProfile === 'function') {
+            editor.applyProfile(payload.profile);
+        }
+        this.remember(pending.first, pending.answer, pending.hadAudio, payload);
+        this.discardQuiet(pending.first ? 'intro' : 'reply');
+        if (this.hasReplyTarget) {
+            this.replyTarget.value = '';
+        }
+        this.showChat(payload);
+        this.openPanel();
+        this.setStatus(payload.complete ? 'Perfil completo. Nada foi salvo.' : 'Perfil atualizado. Nada foi salvo.');
+        this.setBusy(false);
     }
 
     retry(event) {

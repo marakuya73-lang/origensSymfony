@@ -16,5 +16,11 @@ DirectoryIndex index.php
     RewriteCond %{REQUEST_FILENAME} -f
     RewriteRule ^ - [L]
 
+    <IfModule mod_headers.c>
+        <FilesMatch "\.(jpg|jpeg|png|webp)$">
+            Header set Cache-Control "public, max-age=2592000"
+        </FilesMatch>
+    </IfModule>
+
     RewriteRule ^ %{ENV:BASE}/index.php [L]
 </IfModule>

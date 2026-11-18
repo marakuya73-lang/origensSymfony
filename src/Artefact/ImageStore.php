@@ -57,8 +57,73 @@ final class ImageStore
         if ($extension === 'jpg') {
             $this->normalizeJpegOrientation($full);
         }
+        $this->reprocess($full);
 
         return $folder.'/'.$name;
+    }
+
+    public function reprocess(string $path): void
+    {
+        $image = $this->loadGd($path);
+        if (!$image instanceof \GdImage) {
+            return;
+        }
+        $width = imagesx($image);
+        $height = imagesy($image);
+        if (max($width, $height) > 2000) {
+            $backup = $path.'.original';
+            if (!is_file($backup)) {
+                copy($path, $backup);
+            }
+            $scaled = $this->scale($image, 2000);
+            $this->saveGd($scaled, $path);
+            imagedestroy($image);
+            $image = $scaled;
+            $width = imagesx($image);
+            $height = imagesy($image);
+        }
+        $this->writeVariant($image, $path, 1200, $width, $height);
+        $this->writeVariant($image, $path, 400, $width, $height);
+        imagedestroy($image);
+    }
+
+    public function geminiJpeg(string $relative): string
+    {
+        $full = $this->absolute($relative);
+        if ($full === null) {
+            throw new InvalidArtefact('Envie pelo menos uma foto da peça antes de gerar o perfil.');
+        }
+        $image = $this->loadGd($full);
+        if (!$image instanceof \GdImage) {
+            return $this->read($relative);
+        }
+        $scaled = $this->scale($image, 1024);
+        if ($scaled !== $image) {
+            imagedestroy($image);
+        }
+        ob_start();
+        imagejpeg($scaled, null, 80);
+        $bytes = ob_get_clean();
+        imagedestroy($scaled);
+        if (!is_string($bytes) || $bytes === '') {
+            return $this->read($relative);
+        }
+
+        return $bytes;
+    }
+
+    public function sizedWebPath(string $webPath, int $size): string
+    {
+        $prefix = 'uploads/artefacts/';
+        $relative = str_starts_with($webPath, $prefix) ? substr($webPath, strlen($prefix)) : $webPath;
+        $info = pathinfo($relative);
+        $dir = ($info['dirname'] ?? '.') === '.' ? '' : $info['dirname'].'/';
+        $variant = $dir.$info['filename'].'-'.$size.'.jpg';
+        if (is_file($this->directory.'/'.$variant)) {
+            return $prefix.$variant;
+        }
+
+        return str_starts_with($webPath, 'uploads/') ? $webPath : $prefix.$relative;
     }
 
     public function webPath(string $relative): string
@@ -165,6 +230,57 @@ final class ImageStore
         }
 
         return $full;
+    }
+
+    private function loadGd(string $path): ?\GdImage
+    {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes) || $bytes === '') {
+            return null;
+        }
+        $image = @imagecreatefromstring($bytes);
+
+        return $image instanceof \GdImage ? $image : null;
+    }
+
+    private function scale(\GdImage $image, int $longest): \GdImage
+    {
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $max = max($width, $height);
+        if ($max <= $longest) {
+            return $image;
+        }
+        $ratio = $longest / $max;
+        $target = imagecreatetruecolor(max(1, (int) round($width * $ratio)), max(1, (int) round($height * $ratio)));
+        imagecopyresampled($target, $image, 0, 0, 0, 0, imagesx($target), imagesy($target), $width, $height);
+
+        return $target;
+    }
+
+    private function saveGd(\GdImage $image, string $path): void
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        if ($extension === 'png') {
+            imagepng($image, $path);
+            return;
+        }
+        if ($extension === 'webp' && function_exists('imagewebp')) {
+            imagewebp($image, $path, 82);
+            return;
+        }
+        imagejpeg($image, $path, 86);
+    }
+
+    private function writeVariant(\GdImage $image, string $path, int $longest, int $width, int $height): void
+    {
+        $info = pathinfo($path);
+        $target = $info['dirname'].'/'.$info['filename'].'-'.$longest.'.jpg';
+        $scaled = $this->scale($image, $longest);
+        imagejpeg($scaled, $target, 82);
+        if ($scaled !== $image) {
+            imagedestroy($scaled);
+        }
     }
 
     private function ensureDirectory(string $directory): void

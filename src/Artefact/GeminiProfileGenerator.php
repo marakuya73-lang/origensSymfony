@@ -130,8 +130,8 @@ final class GeminiProfileGenerator
                     ],
                     'input' => $input,
                 ],
-                'timeout' => 90,
-                'max_duration' => 90,
+                'timeout' => 45,
+                'max_duration' => 45,
                 'max_redirects' => 0,
             ]);
             $status = $response->getStatusCode();
