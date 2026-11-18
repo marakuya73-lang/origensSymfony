@@ -62,9 +62,39 @@ final class MigrationPreservesRowsTest extends TestCase
         self::assertLessThan($pull, $call);
         self::assertStringContainsString('backup_db "$LIVE"', $backup);
         self::assertStringContainsString('database not found', $backup);
-        self::assertStringContainsString('must be outside the project', (string) file_get_contents($root.'/bin/origens-lib.sh'));
-        self::assertStringContainsString('-gt 10', (string) file_get_contents($root.'/bin/origens-lib.sh'));
+        $lib = (string) file_get_contents($root.'/bin/origens-lib.sh');
+        self::assertStringContainsString('must be outside the project', $lib);
+        self::assertStringContainsString('-gt 10', $lib);
         self::assertStringContainsString('public/uploads', $script);
+        foreach (['origens-lib.sh', 'origens-pull', 'origens-backup'] as $name) {
+            $body = (string) file_get_contents($root.'/bin/'.$name);
+            self::assertDoesNotMatchRegularExpression('/<\(/', $body, $name);
+            self::assertStringNotContainsString('/dev/fd', $body, $name);
+            self::assertStringNotContainsString('mapfile', $body, $name);
+            $output = [];
+            $code = 0;
+            exec('bash -n '.escapeshellarg($root.'/bin/'.$name), $output, $code);
+            self::assertSame(0, $code, implode("\n", $output));
+        }
+    }
+
+    public function testPruneKeepsTheTenNewestBackups(): void
+    {
+        $root = sys_get_temp_dir().'/origens-prune-'.bin2hex(random_bytes(4));
+        mkdir($root.'/backups', 0775, true);
+        for ($i = 0; $i < 12; ++$i) {
+            $name = sprintf('%s/backups/origens-20260101T0000%02dZ.sqlite', $root, $i);
+            file_put_contents($name, 'db');
+            touch($name, 1700000000 + $i);
+        }
+        $lib = dirname(__DIR__, 2).'/bin/origens-lib.sh';
+        $inner = 'source '.escapeshellarg($lib).'; prune_backups';
+        exec('ORIGENS_DATA_ROOT='.escapeshellarg($root).' bash -c '.escapeshellarg($inner), $output, $code);
+        $left = glob($root.'/backups/origens-*.sqlite') ?: [];
+        self::assertSame(0, $code, implode("\n", $output));
+        self::assertCount(10, $left);
+        self::assertFileDoesNotExist(sprintf('%s/backups/origens-20260101T000000Z.sqlite', $root));
+        self::assertFileExists(sprintf('%s/backups/origens-20260101T000011Z.sqlite', $root));
     }
 
     /** @return list<string> */

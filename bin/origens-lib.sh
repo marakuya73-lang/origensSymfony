@@ -66,8 +66,20 @@ backup_db() {
         exit 1
     fi
     echo "origens: backup $backup"
-    mapfile -t old < <(ls -1t "$DATA_ROOT/backups"/origens-*.sqlite 2>/dev/null || true)
-    if [ "${#old[@]}" -gt 10 ]; then
-        rm -f "${old[@]:10}"
-    fi
+    prune_backups
+}
+
+# Keep the ten newest backups. A temp file is used so a restricted shell can run this.
+prune_backups() {
+    local list n=0 file
+    list=$(mktemp)
+    ls -1t "$DATA_ROOT/backups"/origens-*.sqlite >"$list" 2>/dev/null || true
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        n=$((n + 1))
+        if [ "$n" -gt 10 ]; then
+            rm -f "$file"
+        fi
+    done <"$list"
+    rm -f "$list"
 }
