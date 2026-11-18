@@ -167,6 +167,10 @@ a { color: inherit; }
     line-height: 1.45;
     color: var(--ink);
 }
+@media (hover: hover) and (pointer: fine) {
+    .can-speak { cursor: pointer; }
+}
+.can-speak.is-reading { opacity: 0.9; }
 
 .story { margin-top: 4rem; }
 .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 3rem; }
