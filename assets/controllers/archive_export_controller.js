@@ -18,9 +18,6 @@ export default class extends Controller {
     sync() {
         const boxes = this.boxes();
         const selected = boxes.filter((box) => box.checked).length;
-        this.submitTargets.forEach((button) => {
-            button.disabled = selected === 0;
-        });
         if (this.hasAllTarget) {
             this.allTarget.checked = boxes.length > 0 && selected === boxes.length;
             this.allTarget.indeterminate = selected > 0 && selected < boxes.length;
