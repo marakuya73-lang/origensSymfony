@@ -52,6 +52,23 @@ glossary:
 
 O banco de nomes fica no mesmo arquivo, em `title_inspiration`. `avoid` lista palavras gastas. Cada grupo tem `entries` com `word` e `hint`. Para sugerir uma imagem nova, acrescente um item; o próximo perfil já o enxerga.
 
+## Deploy
+
+O banco e as fotos não ficam dentro do que o git atualiza. `var/` e `public/uploads/` estão no `.gitignore`. Um deploy que apaga arquivos não rastreados (`git clean`) ou que substitui a pasta por um clone novo apaga `var/data_prod.db` e as fotos. O `composer install` em seguida roda as migrations e cria um banco vazio. A migration da simbologia só acrescenta uma coluna; ela não apaga linhas.
+
+No servidor, o caminho seguro é a pasta irmã do projeto, fora de `public_html`:
+
+`/home/u505516867/domains/origens.art.br/origens-data/`
+
+`bin/origens-pull` copia o banco para lá, grava o caminho em `.env.local`, faz um backup com data antes do `git pull` (guarda os 10 últimos e para se o backup falhar), liga `public/uploads` a essa pasta e só então migra. Não use `git clean`.
+
+```bash
+cd /home/u505516867/domains/origens.art.br/public_html
+PHP_BIN=/opt/alt/php84/usr/bin/php ./bin/origens-pull
+```
+
+Os logs de produção vão para a saída de erro do PHP (`php://stderr`), não para `var/log/prod.log`.
+
 ## Exportar para a planilha
 
 Na lista de artefactos, marque as peças e use **Exportar CSV** ou **Exportar XLSX**. O CSV é UTF-8 com BOM e separador `;`, para o Excel em português abrir os acentos. A planilha traz referência, nome, preço de venda, descrição, tamanho, categoria, dimensão, materiais, cuidados, feito à mão, data do registro, endereço público e a URL da foto principal. A última linha, **Total**, soma os preços. Uma peça sem preço entra como zero, e a linha diz quantas estão sem preço. No XLSX essa soma é a fórmula `SUM` com formato de real.

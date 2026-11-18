@@ -7,6 +7,7 @@ namespace App\Tests\Artefact;
 use App\Artefact\ArtefactData;
 use App\Artefact\ArtefactRegistrar;
 use App\Artefact\ArtefactRules;
+use App\Entity\Artefact;
 use App\Tests\SchemaBuilder;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -60,6 +61,23 @@ final class ArtefactRegistrarTest extends KernelTestCase
         $piece = $this->registrar()->create($this->data('Milésima', 'P', 2));
 
         self::assertSame('P-CAT2-1000', $piece->getCode());
+    }
+
+    public function testACreatedArtefactIsStillThereAfterTheEntityManagerIsReopened(): void
+    {
+        $created = $this->registrar()->create($this->data('Peça que fica', 'M', 1));
+        $id = $created->getId();
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->clear();
+        $em->getConnection()->close();
+
+        $again = $em->getRepository(Artefact::class)->find($id);
+
+        self::assertInstanceOf(Artefact::class, $again);
+        self::assertSame('Peça que fica', $again->getTitle());
+        self::assertSame($created->getCode(), $again->getCode());
     }
 
     private function registrar(): ArtefactRegistrar
