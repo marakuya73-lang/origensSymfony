@@ -171,6 +171,8 @@ final class AdminToolsTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('button[data-profile-assist-target="generate"]');
         self::assertSelectorTextContains('button[data-profile-assist-target="generate"]', 'Salvar e gerar com IA');
+        self::assertSelectorExists('button[data-profile-assist-target="generate"][type="button"]');
+        self::assertSelectorExists('button[data-profile-assist-target="cancel"][hidden]');
         self::assertSelectorExists('button[data-profile-assist-target="generate"]:not([disabled])');
         self::assertSelectorExists('[data-record-duration]');
         self::assertSelectorExists('details.assist-fold');
@@ -321,6 +323,8 @@ final class AdminToolsTest extends WebTestCase
         $client->request('GET', '/admin/records');
         self::assertSelectorTextContains('body', 'Gerar novamente');
         self::assertStringContainsString('R$ 180,00', (string) $client->getResponse()->getContent());
+        self::assertSelectorTextContains('.backup-warning', 'Há peças gravadas depois deste backup.');
+        self::assertStringNotContainsString('Há peças gravadas', $client->getCrawler()->filter('.backup-status')->text());
     }
 
     public function testSavingAndGeneratingKeepsManualText(): void
@@ -342,10 +346,10 @@ final class AdminToolsTest extends WebTestCase
         self::assertIsString($token);
         $client->setServerParameter('HTTP_ACCEPT', 'application/json');
         $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+        $client->setServerParameter('HTTP_X_ORIGENS_GENERATE', '1');
 
         $client->request('POST', '/admin/records/new', [
             '_token' => $token,
-            'generate' => '1',
             'title' => 'Nome dela',
             'size' => 'M',
             'category' => '1',
@@ -396,6 +400,84 @@ final class AdminToolsTest extends WebTestCase
         self::assertResponseRedirects('/admin/records/saved');
         $client->followRedirect();
         self::assertSelectorNotExists('.ai-badge');
+    }
+
+    public function testAddingAPhotoDoesNotStartGeneration(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'generate' => '1',
+            'title' => '',
+            'size' => 'M',
+            'category' => '1',
+            'description' => '',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertTrue($payload['ok']);
+        self::assertNull($payload['job']);
+        $jobs = static::getContainer()->get(\App\Repository\ProfileJobRepository::class);
+        self::assertInstanceOf(\App\Repository\ProfileJobRepository::class, $jobs);
+        self::assertSame([], $jobs->recent());
+    }
+
+    public function testGenerateKeepsTheNotesFromTheButtonAndCancelStopsTheJob(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+        $client->setServerParameter('HTTP_X_ORIGENS_GENERATE', '1');
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => '',
+            'size' => 'M',
+            'category' => '1',
+            'description' => '',
+            'notes' => 'Palha do cerrado.',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+            'audio' => $this->wav(),
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $jobs = static::getContainer()->get(\App\Repository\ProfileJobRepository::class);
+        self::assertInstanceOf(\App\Repository\ProfileJobRepository::class, $jobs);
+        $job = $jobs->recent()[0] ?? null;
+        self::assertInstanceOf(\App\Entity\ProfileJob::class, $job);
+        self::assertSame('Palha do cerrado.', $job->getNotes());
+        self::assertNotNull($job->getAudioPath());
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->getConnection()->executeStatement(
+            'UPDATE profile_jobs SET status = :status, run_at = :run WHERE id = :id',
+            ['status' => 'queued', 'run' => (new \DateTimeImmutable('+1 hour'))->format('Y-m-d H:i:s'), 'id' => $job->getId()],
+        );
+        $em->clear();
+
+        $client->request('POST', '/admin/records/profile/'.$job->getId().'/cancel', ['_token' => $token]);
+        self::assertResponseIsSuccessful();
+        $em->clear();
+        $cancelled = $em->find(\App\Entity\ProfileJob::class, $job->getId());
+        self::assertInstanceOf(\App\Entity\ProfileJob::class, $cancelled);
+        self::assertSame('cancelled', $cancelled->getStatus());
     }
 
     private function browser(): KernelBrowser

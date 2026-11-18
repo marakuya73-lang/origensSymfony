@@ -29,7 +29,7 @@ final class ArchiveFlowTest extends WebTestCase
         }
         $owner = $this->ownerClient();
         $owner->request('GET', '/admin/records');
-        self::assertSelectorTextContains('.backup-status', 'Último backup baixado: nenhum');
+        self::assertSelectorTextContains('.backup-status', 'Último backup baixado: nenhum.');
         $owner->request('GET', '/admin/records/backup');
         self::assertResponseIsSuccessful();
         $disposition = (string) $owner->getResponse()->headers->get('content-disposition');

@@ -107,7 +107,7 @@ final class ArchiveSnapshot
         $changed = is_file($database) ? (int) filemtime($database) : 0;
         $moment = $downloaded > 0
             ? (new \DateTimeImmutable('@'.$downloaded))->setTimezone(new \DateTimeZone('America/Sao_Paulo'))->format('d/m/Y H:i')
-            : 'nenhum';
+            : 'nenhum.';
 
         return [
             'label' => 'Último backup baixado: '.$moment,
