@@ -39,7 +39,7 @@
                         <p class="lede">O texto desta peça ainda está sendo escrito.</p>
                     {% endif %}
                     {% if a.lede %}
-                        <p class="lede" data-controller="read-aloud" data-action="click->read-aloud#toggle">{{ a.lede|nl2br }}</p>
+                        <p class="lede" data-controller="read-aloud" data-action="click->read-aloud#toggle touchend->read-aloud#toggle">{{ a.lede|nl2br }}</p>
                     {% endif %}
 
                     <dl class="meta-strip">
@@ -54,7 +54,7 @@
                     </dl>
 
                     {% if a.symbolism %}
-                        <p class="symbolism" data-controller="read-aloud" data-action="click->read-aloud#toggle">{{ a.symbolism|nl2br }}</p>
+                        <p class="symbolism" data-controller="read-aloud" data-action="click->read-aloud#toggle touchend->read-aloud#toggle">{{ a.symbolism|nl2br }}</p>
                     {% endif %}
                 </div>
             </div>

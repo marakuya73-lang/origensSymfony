@@ -12,6 +12,13 @@ final class ArtefactRules
 
     public const PENDING = 'informação a documentar';
 
+    /** @var array<int, string> */
+    public const CATEGORY_LABELS = [
+        1 => 'Categoria 1',
+        2 => 'Categoria 2',
+        3 => 'Categoria 3',
+    ];
+
     public const DESCRIPTION_MAX = 8000;
 
     public const CODE_PATTERN = '/^[PMG]-CAT[123]-\d{3,}$/';

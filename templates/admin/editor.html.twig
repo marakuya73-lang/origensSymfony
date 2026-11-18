@@ -152,7 +152,7 @@
 
             <input type="hidden" name="locked" value="[]" data-artefact-editor-target="locked">
             <label class="field">Nome do artefacto
-                <input name="title" maxlength="180" value="{{ draft.title }}" autofocus>
+                <input name="title" maxlength="180" value="{{ draft.title }}" enterkeyhint="done" autofocus>
             </label>
 
             <div class="split">
@@ -170,10 +170,10 @@
                 <fieldset>
                     <legend>Categoria</legend>
                     <div class="choice">
-                        {% for category in [1, 2, 3] %}
+                        {% for value, label in constant('App\\Artefact\\ArtefactRules::CATEGORY_LABELS') %}
                             <label class="choice-option">
-                                <input type="radio" name="category" value="{{ category }}" {% if draft.category == category %}checked{% endif %}>
-                                {{ category }}
+                                <input type="radio" name="category" value="{{ value }}" {% if draft.category == value %}checked{% endif %}>
+                                {{ label }}
                             </label>
                         {% endfor %}
                     </div>
@@ -190,7 +190,7 @@
             </div>
 
             <label class="field">Preço de venda (opcional)
-                <input name="sale_price" inputmode="decimal" maxlength="16" value="{{ draft.salePrice }}" placeholder="Ex.: 1.250,00" autocomplete="off">
+                <input name="sale_price" inputmode="decimal" maxlength="16" value="{{ draft.salePrice }}" placeholder="Ex.: 1.250,00" enterkeyhint="done" autocomplete="off">
             </label>
             <p class="hint">Em reais. Fica no arquivo e na planilha, e não aparece na página pública.</p>
 
