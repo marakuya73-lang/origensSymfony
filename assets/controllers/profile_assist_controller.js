@@ -612,11 +612,19 @@ export default class extends Controller {
         const stored = audio?.stored === true && typeof audio.url === 'string' && audio.url !== '';
         if (this.hasSavedAudioPlayerTarget) {
             this.savedAudioPlayerTarget.hidden = !stored;
+            this.savedAudioPlayerTarget.removeAttribute('src');
+            this.savedAudioPlayerTarget.replaceChildren();
             if (stored) {
-                this.savedAudioPlayerTarget.src = audio.url;
-            } else {
-                this.savedAudioPlayerTarget.removeAttribute('src');
+                const source = document.createElement('source');
+                source.src = audio.url;
+                source.type = audio.type || 'audio/mp4';
+                this.savedAudioPlayerTarget.appendChild(source);
+                this.savedAudioPlayerTarget.load();
             }
+        }
+        const preview = this.element.querySelector('[data-slot="intro"] .record-ready');
+        if (preview) {
+            preview.hidden = stored;
         }
         if (this.hasSavedAudioActionsTarget) {
             this.savedAudioActionsTarget.hidden = !stored;

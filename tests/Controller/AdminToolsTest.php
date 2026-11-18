@@ -621,9 +621,14 @@ final class AdminToolsTest extends WebTestCase
         self::assertTrue($payload['audio']['stored']);
         self::assertMatchesRegularExpression('/Áudio gravado · 0:42 · \d{2}\/\d{2} \d{2}:\d{2}/', (string) $payload['audio']['label']);
         self::assertNull($payload['job']);
+        self::assertSame('audio/wav', $payload['audio']['type']);
 
-        $client->request('GET', (string) $payload['audio']['url']);
-        self::assertResponseIsSuccessful();
+        $client->request('GET', (string) $payload['audio']['url'], [], [], ['HTTP_RANGE' => 'bytes=0-3']);
+        self::assertResponseStatusCodeSame(206);
+        self::assertResponseHeaderSame('content-type', 'audio/wav');
+        self::assertStringStartsWith('bytes 0-3/', (string) $client->getResponse()->headers->get('content-range'));
+        $client->request('GET', (string) $payload['editUrl']);
+        self::assertSelectorExists('audio[preload="metadata"] source[type="audio/wav"]');
         $client->request('GET', '/admin/records');
         self::assertSelectorTextContains('.audio-badge', 'Tem áudio');
 
@@ -649,6 +654,44 @@ final class AdminToolsTest extends WebTestCase
         self::assertIsArray($removed);
         self::assertFalse($removed['audio']['stored']);
         self::assertSame('Sem áudio', $removed['audio']['label']);
+    }
+
+    public function testSafariAudioIsServedAsMp4WithARange(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => 'Safari',
+            'size' => 'M',
+            'category' => '1',
+            'description' => 'Texto.',
+            'materials' => [['name' => 'Pedra', 'note' => 'Verde.']],
+            'audio_ms' => '39000',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+            'audio' => $this->mp4(),
+        ]);
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertSame('audio/mp4', $payload['audio']['type']);
+        $saved = static::getContainer()->get(\App\Repository\ArtefactRepository::class);
+        self::assertInstanceOf(\App\Repository\ArtefactRepository::class, $saved);
+        $artefact = $saved->find($payload['id']);
+        self::assertInstanceOf(\App\Entity\Artefact::class, $artefact);
+        self::assertStringEndsWith('.m4a', (string) $artefact->getAudioPath());
+
+        $client->request('GET', (string) $payload['audio']['url'], [], [], ['HTTP_RANGE' => 'bytes=0-7']);
+        self::assertResponseStatusCodeSame(206);
+        self::assertResponseHeaderSame('content-type', 'audio/mp4');
+        self::assertStringStartsWith('bytes 0-7/', (string) $client->getResponse()->headers->get('content-range'));
+        $client->request('GET', (string) $payload['editUrl']);
+        self::assertSelectorExists('audio[preload="metadata"] source[type="audio/mp4"]');
     }
 
     private function browser(): KernelBrowser
@@ -732,6 +775,15 @@ final class AdminToolsTest extends WebTestCase
         unset($image);
 
         return new UploadedFile($path, 'pena.jpg', 'image/jpeg', null, true);
+    }
+
+    private function mp4(): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'm4a');
+        self::assertIsString($path);
+        file_put_contents($path, hex2bin('00000018667479706d703432000000006d703432').str_repeat("\0", 16));
+
+        return new UploadedFile($path, 'gravacao.mp4', 'audio/mp4', null, true);
     }
 
     private function wav(): UploadedFile

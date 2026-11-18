@@ -107,7 +107,7 @@
                     </div>
                     <div class="saved-audio" data-profile-assist-target="savedAudio">
                         <p data-profile-assist-target="savedAudioLabel">{{ audio.label }}</p>
-                        <audio controls preload="metadata" data-profile-assist-target="savedAudioPlayer" {% if not audio.stored %}hidden{% endif %}{% if audio.url %} src="{{ audio.url }}"{% endif %}></audio>
+                        <audio controls preload="metadata" data-profile-assist-target="savedAudioPlayer" {% if not audio.stored %}hidden{% endif %}>{% if audio.stored and audio.url %}<source src="{{ audio.url }}" type="{{ audio.type|default('audio/mp4') }}">{% endif %}</audio>
                         <div class="assist-actions" data-profile-assist-target="savedAudioActions" {% if not audio.stored %}hidden{% endif %}>
                             <button type="button" class="btn btn-ghost" data-action="profile-assist#rerecord">Regravar</button>
                             <button type="button" class="btn btn-ghost" data-action="profile-assist#removeSavedAudio">Remover</button>

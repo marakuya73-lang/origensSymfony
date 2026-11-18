@@ -258,13 +258,7 @@ final class ProfileJobRunner
 
     public function storeAudio(string $bytes, string $mime): string
     {
-        $extension = match ($mime) {
-            'audio/webm', 'video/webm' => 'webm',
-            'audio/mp4', 'video/mp4', 'audio/m4a', 'audio/x-m4a' => 'm4a',
-            'audio/mpeg' => 'mp3',
-            'audio/wav', 'audio/x-wav' => 'wav',
-            default => 'bin',
-        };
+        $extension = $this->audioExtension($mime, $bytes);
         $directory = dirname($this->uploads).'/audio';
         if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
             throw new InvalidArtefact('Não foi possível guardar o áudio.');
@@ -311,7 +305,7 @@ final class ProfileJobRunner
     /** @return array{stored: bool, label: string, mime: ?string} */
     public function confirmedAudio(Artefact $artefact): array
     {
-        $empty = ['stored' => false, 'label' => 'Sem áudio', 'mime' => null];
+        $empty = ['stored' => false, 'label' => 'Sem áudio', 'mime' => null, 'type' => null];
         $relative = $artefact->getAudioPath();
         if ($relative === null || $relative === '' || str_contains($relative, '..')) {
             return $empty;
@@ -333,7 +327,50 @@ final class ProfileJobRunner
         $clock = $this->clock($artefact->getAudioDurationMs());
         $label = 'Áudio gravado'.($clock !== '' ? ' · '.$clock : '').($when !== '' ? ' · '.$when : '');
 
-        return ['stored' => true, 'label' => $label, 'mime' => $artefact->getAudioMime()];
+        return [
+            'stored' => true,
+            'label' => $label,
+            'mime' => $artefact->getAudioMime(),
+            'type' => $this->playbackType($artefact->getAudioMime(), $relative),
+        ];
+    }
+
+    public function playbackType(?string $mime, ?string $relative = null): string
+    {
+        $mime = strtolower(trim(strtok($mime ?? '', ';') ?: ''));
+        $extension = strtolower(pathinfo((string) $relative, PATHINFO_EXTENSION));
+        if (in_array($mime, ['audio/mp4', 'video/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac'], true) || in_array($extension, ['m4a', 'mp4', 'aac'], true)) {
+            return 'audio/mp4';
+        }
+        if (in_array($mime, ['audio/wav', 'audio/x-wav', 'audio/wave'], true) || $extension === 'wav') {
+            return 'audio/wav';
+        }
+        if (in_array($mime, ['audio/mpeg', 'audio/mp3'], true) || $extension === 'mp3') {
+            return 'audio/mpeg';
+        }
+        if (str_contains($mime, 'ogg') || $extension === 'ogg') {
+            return 'audio/ogg';
+        }
+
+        return 'audio/webm';
+    }
+
+    private function audioExtension(string $mime, string $bytes): string
+    {
+        $mime = strtolower(trim(strtok($mime, ';') ?: $mime));
+        $extension = match ($mime) {
+            'audio/webm', 'video/webm' => 'webm',
+            'audio/mp4', 'video/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac' => 'm4a',
+            'audio/mpeg', 'audio/mp3' => 'mp3',
+            'audio/wav', 'audio/x-wav', 'audio/wave' => 'wav',
+            'audio/ogg', 'application/ogg', 'audio/opus' => 'ogg',
+            default => '',
+        };
+        if ($extension === '' && strlen($bytes) >= 8 && substr($bytes, 4, 4) === 'ftyp') {
+            return 'm4a';
+        }
+
+        return $extension !== '' ? $extension : 'webm';
     }
 
     private function clock(?int $milliseconds): string

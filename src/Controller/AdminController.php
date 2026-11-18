@@ -260,9 +260,10 @@ final class AdminController extends AbstractController
             throw $this->createNotFoundException();
         }
         $response = new BinaryFileResponse($path);
-        $response->headers->set('Content-Type', $state['mime'] ?? 'application/octet-stream');
-        $response->headers->set('Cache-Control', 'private, no-store');
-        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, 'audio');
+        $response->headers->set('Content-Type', $this->jobRunner->playbackType($artefact->getAudioMime(), $artefact->getAudioPath()));
+        $response->headers->set('Accept-Ranges', 'bytes');
+        $response->headers->set('Cache-Control', 'private');
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
 
         return $response;
     }
@@ -501,11 +502,11 @@ final class AdminController extends AbstractController
         return $this->editor($current, $draft, $error, $status);
     }
 
-    /** @return array{stored: bool, label: string, url: ?string} */
+    /** @return array{stored: bool, label: string, url: ?string, type: ?string} */
     private function audioState(?Artefact $artefact): array
     {
         if (!$artefact instanceof Artefact) {
-            return ['stored' => false, 'label' => 'Sem áudio', 'url' => null];
+            return ['stored' => false, 'label' => 'Sem áudio', 'url' => null, 'type' => null];
         }
         $state = $this->jobRunner->confirmedAudio($artefact);
 
@@ -513,6 +514,7 @@ final class AdminController extends AbstractController
             'stored' => $state['stored'],
             'label' => $state['label'],
             'url' => $state['stored'] ? $this->generateUrl('admin_artefact_audio', ['id' => $artefact->getId()]) : null,
+            'type' => $state['type'] ?? null,
         ];
     }
 
