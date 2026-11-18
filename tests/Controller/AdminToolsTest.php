@@ -57,7 +57,7 @@ final class AdminToolsTest extends WebTestCase
         ], ['audio' => $this->wav()]);
 
         self::assertResponseIsSuccessful();
-        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        $payload = $this->finishedProfile($client);
         self::assertIsArray($payload);
         self::assertTrue($payload['ok']);
         self::assertSame('Abano de palha', $payload['profile']['title']);
@@ -101,7 +101,7 @@ final class AdminToolsTest extends WebTestCase
         ]);
 
         self::assertResponseIsSuccessful();
-        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        $payload = $this->finishedProfile($client);
         self::assertIsArray($payload);
         self::assertSame('Nome escrito à mão', $payload['profile']['title']);
         self::assertSame('Já escrevi isto.', $payload['profile']['description']);
@@ -136,9 +136,10 @@ final class AdminToolsTest extends WebTestCase
             '_token' => $this->token($client, '/admin/records/new'),
             'image' => $uploaded['path'],
         ]);
-        self::assertResponseStatusCodeSame(503);
-        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertResponseIsSuccessful();
+        $payload = $this->finishedProfile($client);
         self::assertIsArray($payload);
+        self::assertSame('failed', $payload['status']);
         self::assertSame(ProfileGenerationFailed::UNCONFIGURED, $payload['error']);
 
         $client->request('POST', '/admin/records/profile', [
@@ -295,6 +296,19 @@ final class AdminToolsTest extends WebTestCase
         $client->loginUser(new InMemoryUser('owner', (string) ($_SERVER['ORIGENS_OWNER_PASSWORD_HASH'] ?? ''), ['ROLE_ADMIN']));
 
         return $client;
+    }
+
+    /** @return array<string, mixed> */
+    private function finishedProfile(KernelBrowser $client): array
+    {
+        $started = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($started);
+        self::assertArrayHasKey('job', $started);
+        $client->request('GET', '/admin/records/profile/'.$started['job']);
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+
+        return $payload;
     }
 
     private function token(KernelBrowser $client, string $path): string

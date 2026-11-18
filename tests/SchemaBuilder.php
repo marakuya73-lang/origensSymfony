@@ -12,6 +12,7 @@ final class SchemaBuilder
     public static function rebuild(EntityManagerInterface $em): void
     {
         $connection = $em->getConnection();
+        $connection->executeStatement('DROP TABLE IF EXISTS profile_jobs');
         $connection->executeStatement('DROP TABLE IF EXISTS artefacts');
         $connection->executeStatement('DROP TABLE IF EXISTS artefact_counters');
         $connection->executeStatement('DROP TABLE IF EXISTS messenger_messages');

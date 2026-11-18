@@ -137,6 +137,35 @@ export default class extends Controller {
         input.checked = true;
     }
 
+    async prepareUpload(file) {
+        if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') {
+            return file;
+        }
+        try {
+            const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+            const longest = Math.max(bitmap.width, bitmap.height);
+            const scale = Math.min(1, 2000 / longest);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+            canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+            const context = canvas.getContext('2d');
+            if (!context) {
+                bitmap.close?.();
+                return file;
+            }
+            context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close?.();
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+            if (!blob) {
+                return file;
+            }
+
+            return new File([blob], 'foto.jpg', { type: 'image/jpeg' });
+        } catch {
+            return file;
+        }
+    }
+
     async upload() {
         const files = Array.from(this.fileTarget.files || []);
         this.fileTarget.value = '';
@@ -156,8 +185,9 @@ export default class extends Controller {
                     this.showError('Use fotos JPG, PNG ou WebP de até 10 MB.');
                     continue;
                 }
+                const prepared = await this.prepareUpload(file);
                 const body = new FormData();
-                body.append('image', file);
+                body.append('image', prepared);
                 body.append('_token', this.tokenValue);
                 const response = await fetch(this.uploadUrlValue, { method: 'POST', body, headers: { Accept: 'application/json' } });
                 let payload = {};

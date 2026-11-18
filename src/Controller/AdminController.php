@@ -14,6 +14,9 @@ use App\Artefact\ImageStore;
 use App\Artefact\InvalidArtefact;
 use App\Artefact\ProfileExchange;
 use App\Artefact\ProfileGenerationFailed;
+use App\Artefact\ProfileJobRunner;
+use App\Entity\ProfileJob;
+use App\Repository\ProfileJobRepository;
 use App\Artefact\SalePrice;
 use App\Artefact\SellerTable;
 use App\Artefact\SubmissionParser;
@@ -42,6 +45,8 @@ final class AdminController extends AbstractController
         private SellerTable $sheet,
         private TabularFile $files,
         private ArchiveSnapshot $snapshots,
+        private ProfileJobRepository $jobs,
+        private ProfileJobRunner $jobRunner,
     ) {
     }
 
@@ -62,8 +67,9 @@ final class AdminController extends AbstractController
             $path = $request->request->getString('image');
             $notes = $request->request->getString('notes');
             $answer = $request->request->getString('answer');
-            $image = $this->images->read($path);
-            $mime = $this->images->mimeType($path);
+            if (!$this->images->exists($path)) {
+                throw new InvalidArtefact('Envie pelo menos uma foto da peça antes de gerar o perfil.');
+            }
             $audio = AudioClip::read($request->files->get('audio'));
             $history = ProfileExchange::history($request->request->getString('history'));
             $form = ProfileExchange::form($request->request->getString('form'));
@@ -84,27 +90,68 @@ final class AdminController extends AbstractController
             return $this->json(['ok' => false, 'error' => ProfileExchange::ANSWER_REQUIRED], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $audioBytes = null;
-        $audioMime = null;
+        $job = new ProfileJob($path);
+        $job->setNotes($notes);
+        $job->setAnswer($answer);
+        $job->setHistory($request->request->getString('history') !== '' ? $request->request->getString('history') : '[]');
+        $job->setForm($request->request->getString('form') !== '' ? $request->request->getString('form') : '{}');
+        $job->setTouched($request->request->getString('touched') !== '' ? $request->request->getString('touched') : '[]');
         if ($audio !== null) {
-            [$audioBytes, $audioMime] = $audio;
+            [$bytes, $audioMime] = $audio;
+            try {
+                $job->setAudioPath($this->jobRunner->storeAudio($bytes, $audioMime));
+                $job->setAudioMime($audioMime);
+            } catch (InvalidArtefact $exception) {
+                return $this->json(['ok' => false, 'error' => $exception->getMessage()], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
         }
-
-        try {
-            $turn = $this->profiles->suggest($image, $mime, $audioBytes, $audioMime, $notes, $answer, $history, $form, $touched, $this->artefacts->recentTitles());
-        } catch (ProfileGenerationFailed $exception) {
-            return $this->json(['ok' => false, 'error' => $exception->getMessage()], $exception->status());
-        }
-
-        $profile = ProfileExchange::merge($turn->profile, $form, $touched, $turn->changed);
+        $this->jobs->getEntityManager()->persist($job);
+        $this->jobs->getEntityManager()->flush();
+        $request->attributes->set('origens_profile_job', $job->getId());
 
         return $this->json([
             'ok' => true,
-            'profile' => $profile->toArray(),
-            'questions' => $turn->questions,
-            'complete' => $turn->complete,
-            'changed' => $turn->changed,
+            'job' => $job->getId(),
+            'status' => 'queued',
+            'message' => 'Na fila…',
         ]);
+    }
+
+    #[Route('/admin/records/profile/{id}', name: 'admin_artefact_profile_status', methods: ['GET'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
+    public function profileStatus(string $id): JsonResponse
+    {
+        $job = $this->jobs->find($id);
+        if (!$job instanceof ProfileJob) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível encontrar essa geração.'], Response::HTTP_NOT_FOUND);
+        }
+        $message = match ($job->getStage()) {
+            'listening' => 'Ouvindo o áudio…',
+            'looking' => 'Olhando a peça…',
+            'writing' => 'Escrevendo…',
+            'queued' => 'Na fila…',
+            'done' => 'Perfil pronto. Nada foi salvo.',
+            'failed' => $job->getError() ?? 'Não foi possível gerar o perfil.',
+            default => 'Gerando…',
+        };
+        $payload = [
+            'ok' => true,
+            'job' => $job->getId(),
+            'status' => $job->getStatus(),
+            'stage' => $job->getStage(),
+            'message' => $message,
+            'error' => $job->getStatus() === 'failed' ? ($job->getError() ?? 'Não foi possível gerar o perfil.') : null,
+        ];
+        if ($job->getStatus() === 'done' && is_string($job->getResult())) {
+            $decoded = json_decode($job->getResult(), true);
+            if (is_array($decoded)) {
+                $payload['profile'] = $decoded['profile'] ?? null;
+                $payload['questions'] = $decoded['questions'] ?? [];
+                $payload['complete'] = $decoded['complete'] ?? false;
+                $payload['changed'] = $decoded['changed'] ?? [];
+            }
+        }
+
+        return $this->json($payload);
     }
 
     #[Route('/admin/records/backup', name: 'admin_artefact_backup', methods: ['GET'])]

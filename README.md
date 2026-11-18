@@ -72,6 +72,14 @@ PHP_BIN=/opt/alt/php84/usr/bin/php ./bin/origens-pull
 
 `origens:check` mostra o arquivo do banco, se ele aceita gravação, quantas peças existem, a pasta das fotos e o último backup. O caminho tem de terminar em `origens-data/origens.sqlite`.
 
+A geração do perfil não espera a resposta do modelo na mesma requisição: a foto e o áudio já estão gravados, o trabalho segue depois da resposta, e a página pergunta o andamento a cada poucos segundos. No cron da Hostinger, a cada minuto:
+
+```bash
+* * * * * cd /home/u505516867/domains/origens.art.br/public_html && /opt/alt/php84/usr/bin/php bin/console origens:ai-jobs --env=prod
+```
+
+Fotos grandes são reduzidas no navegador e de novo no servidor (até 2000 px, mais versões de 1200 e 400). Para as que já estão no disco: `bin/console origens:images:resize --env=prod`.
+
 Um backup diário, além do que o deploy já faz:
 
 ```bash
