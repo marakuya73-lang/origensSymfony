@@ -24,6 +24,7 @@ final class SymbolicTradition
         'signs' => 'signo',
         'planets' => 'planeta',
         'intentions' => 'intenção',
+        'creatures' => 'ave ou animal',
     ];
 
     /** Frases curtas destas listas viajam mesmo sem o nome no texto, para o áudio e a foto. */

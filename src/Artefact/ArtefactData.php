@@ -25,6 +25,7 @@ final readonly class ArtefactData
         public array $images,
         public \DateTimeImmutable $recordDate,
         public ?int $salePriceCents = null,
+        public string $symbolism = '',
     ) {
     }
 
@@ -44,6 +45,7 @@ final readonly class ArtefactData
         array $imagePaths,
         string $recordDate,
         ?int $salePriceCents = null,
+        string $symbolism = '',
     ): self {
         if (count($imagePaths) > 12) {
             throw new InvalidArtefact('Selecione até 12 fotos por peça.');
@@ -51,6 +53,7 @@ final readonly class ArtefactData
 
         $title = trim($title);
         $description = trim($description);
+        $symbolism = trim($symbolism);
         $dimensions = trim($dimensions);
         $handmade = trim($handmade);
         $normalizedMaterials = self::materials($materials);
@@ -63,6 +66,7 @@ final readonly class ArtefactData
             && $title !== ''
             && mb_strlen($title) <= 180
             && mb_strlen($description) <= ArtefactRules::DESCRIPTION_MAX
+            && mb_strlen($symbolism) <= ArtefactRules::DESCRIPTION_MAX
             && mb_strlen($dimensions) <= 100
             && $normalizedMaterials !== null
             && $lines !== null
@@ -88,6 +92,7 @@ final readonly class ArtefactData
             $images,
             $date,
             $salePriceCents,
+            $symbolism,
         );
     }
 

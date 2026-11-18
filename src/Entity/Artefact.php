@@ -37,6 +37,9 @@ class Artefact
     #[ORM\Column(length: ArtefactRules::DESCRIPTION_MAX)]
     private string $description = '';
 
+    #[ORM\Column(type: Types::TEXT, options: ['default' => ''])]
+    private string $symbolism = '';
+
     #[ORM\Column(length: 100)]
     private string $dimensions = '';
 
@@ -126,6 +129,11 @@ class Artefact
         return $this->description;
     }
 
+    public function getSymbolism(): string
+    {
+        return $this->symbolism;
+    }
+
     public function getDimensions(): string
     {
         return $this->dimensions;
@@ -180,6 +188,7 @@ class Artefact
     {
         $this->title = $data->title;
         $this->description = $data->description;
+        $this->symbolism = $data->symbolism;
         $this->dimensions = $data->dimensions;
         $this->materials = $data->materials;
         $this->care = $data->care;

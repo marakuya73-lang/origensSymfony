@@ -607,6 +607,124 @@ glossary:
     mishearings: [buzios, busios]
     text: "Conchas pequenas usadas como contas e, nas casas de matriz africana, como oráculo."
 
+  - term: bacurau
+    mishearings: [bacural, bacuraú, bacurao, bacuráu]
+    text: "Ave noturna de canto longo. Não escreva bacural."
+
+  - term: anu-branco
+    mishearings: [anu branco, anu-branca, anubranco]
+    text: "Anu de plumagem clara, que anda em bando."
+
+  - term: anu-preto
+    mishearings: [anu preto, anu-preta, anupreto]
+    text: "Anu de plumagem negra."
+
+  - term: corujão-orelhudo
+    mishearings: [corujão orelhudo, corujao orelhudo, coruja orelhuda, jacurutu, jacuruto]
+    text: "Coruja grande, de tufos como orelhas. O mesmo que jacurutu."
+
+  - term: coruja-buraqueira
+    mishearings: [coruja buraqueira, coruja do campo, coruja buraquera]
+    text: "Coruja do chão, das tocas e dos campos."
+
+  - term: carcará
+    mishearings: [carcara, carcará, caracará]
+    text: "Ave de rapina dos campos abertos."
+
+  - term: canela de vaca
+    mishearings: [canela da vaca, canela de vaca]
+    text: "Osso da canela de vaca, usado na estrutura da peça."
+
+  - term: canela de égua
+    mishearings: [canela de egua, canela da égua, canela de egua]
+    text: "Osso da canela de égua."
+
+  - term: couro de cabra
+    mishearings: [couro da cabra, couro de cabra]
+    text: "Pele de cabra."
+
+  - term: couro de bode
+    mishearings: [couro do bode]
+    text: "Pele de bode."
+
+  - term: couro de veado
+    mishearings: [couro do veado, couro de veado]
+    text: "Pele de veado."
+
+creatures:
+  - id: bacurau
+    names: [bacurau]
+    brief: "Canto longo da noite morna, vigília mansa e o recado que atravessa o escuro."
+    text: "O bacurau canta quando o dia já se deitou. Na peça, a pena dele é vigília mansa, um recado que atravessa o escuro sem assustar."
+  - id: anu-branco
+    names: [anu-branco, anu branco]
+    brief: "Clareza de bando, manhã e a pena que abre um claro."
+    text: "O anu-branco anda em grupo e clareia o verde. A pena dele abre um intervalo de luz, um começo sem alarde."
+  - id: anu-preto
+    names: [anu-preto, anu preto]
+    brief: "O escuro que protege e o bando que não se perde."
+    text: "O anu-preto é sombra viva e companhia. A pena negra guarda, sem ser luto, quem precisa de uma margem."
+  - id: corujao-orelhudo
+    names: [corujão-orelhudo, corujão orelhudo, jacurutu]
+    brief: "Ouvido do escuro, asa larga e uma sabedoria que não grita."
+    text: "O corujão-orelhudo escuta com o corpo. A asa dele, na peça, é atenção e abrigo, a noite tornada casa."
+  - id: coruja-buraqueira
+    names: [coruja-buraqueira, coruja buraqueira]
+    brief: "Chão, toca e um olhar que mora rente à terra."
+    text: "A coruja-buraqueira vive no chão. A pena dela firma, lembra toca, campo e quem sabe esperar."
+  - id: carcara
+    names: [carcará, carcara]
+    brief: "Campo aberto, vista longa e uma coragem sem pressa."
+    text: "O carcará olha o campo de cima e não tem pressa. A pena dele traz altitude e um aviso claro."
+  - id: papagaio
+    names: [papagaio]
+    brief: "Fala colorida, mata e a memória que repete com graça."
+    text: "O papagaio guarda a fala da mata. A pena dele é cor e memória, uma voz que permanece."
+  - id: peru
+    names: [peru, pena de peru]
+    brief: "Terra, abundância de terreiro e uma plumagem que se abre."
+    text: "A pena de peru é terreiro e fartura simples. Abre em leque, quente, de quem conhece o chão da casa."
+  - id: ema
+    names: [ema]
+    brief: "Passo largo do cerrado, altura e um correr que mal toca o chão."
+    text: "A ema atravessa o cerrado em passo longo. A pena dela é distância, vento baixo e firmeza."
+  - id: urubu
+    names: [urubu]
+    brief: "Quem limpa o céu, transforma o que sobrou e devolve o campo ao dia."
+    text: "O urubu não é agouro: limpa, transforma e devolve o chão ao dia. A pena dele, se ela a usou, é esse trabalho de clarear."
+  - id: tucano
+    names: [tucano]
+    brief: "Bico de cor, mata alta e uma alegria que se anuncia."
+    text: "O tucano é cor na mata alta. A pena dele anuncia, sem gritar, uma alegria de fruto e de sombra."
+  - id: mutum
+    names: [mutum]
+    brief: "Ave de chão da mata, canto grave e presença antiga."
+    text: "O mutum anda no chão da mata com canto grave. A pena dele é presença antiga, de quem não precisa se exibir."
+  - id: jacu
+    names: [jacu]
+    brief: "Mata, canto rouco e o convívio do terreiro com a floresta."
+    text: "O jacu vive entre a mata e o terreiro. A pena dele é esse convívio, um canto rouco e doméstico."
+  - id: canela-de-vaca
+    names: [canela de vaca]
+    brief: "Osso de apoio, caminho andado e a estrutura que segura a peça."
+    text: "A canela de vaca é osso de quem andou. Na peça sustenta, lembra caminho, pasto e uma força paciente."
+  - id: canela-de-egua
+    names: [canela de égua, canela de egua]
+    brief: "Osso leve de quem corre, elegância e travessia."
+    text: "A canela de égua é osso de corrida e de elegância. Sustenta a peça com uma leveza que já atravessou estrada."
+  - id: couro-de-cabra
+    names: [couro de cabra]
+    brief: "Pele ágil, morro e um calor miúdo."
+    text: "O couro de cabra é pele ágil, de morro e de sol. Flexível, quente, de quem sobe sem fazer barulho."
+  - id: couro-de-bode
+    names: [couro de bode]
+    brief: "Pele firme, terreiro e uma guarda mais seca."
+    text: "O couro de bode é firme e seco, de terreiro. Guarda a borda da peça com um calor direto."
+  - id: couro-de-veado
+    names: [couro de veado]
+    brief: "Pele de quem passa sem ser visto, mata e delicadeza alerta."
+    text: "O couro de veado é passagem silenciosa. Macio e alerta, lembra a mata fechando atrás de quem caminha."
+
 title_inspiration:
   avoid: [noite, lua, luar, sereno, sonho, místico, sagrado]
   groups:

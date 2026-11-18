@@ -26,6 +26,7 @@ final class ArtefactDraft
         public bool $locked,
         public ?string $code,
         public string $salePrice = '',
+        public string $symbolism = '',
     ) {
     }
 
@@ -64,6 +65,7 @@ final class ArtefactDraft
             locked: true,
             code: $artefact->getCode(),
             salePrice: SalePrice::input($artefact->getSalePriceCents()),
+            symbolism: $artefact->getSymbolism(),
         );
     }
 
@@ -85,6 +87,7 @@ final class ArtefactDraft
         ImageStore $images,
         ?Artefact $current,
         string $salePrice = '',
+        string $symbolism = '',
     ): self {
         if (!in_array($size, ['P', 'M', 'G'], true)) {
             $size = 'M';
@@ -110,6 +113,7 @@ final class ArtefactDraft
             locked: $current !== null,
             code: $current?->getCode(),
             salePrice: $salePrice,
+            symbolism: $symbolism,
         );
     }
 

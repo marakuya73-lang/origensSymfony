@@ -29,7 +29,7 @@ export default class extends Controller {
         if (target.closest('[data-material]')) {
             return 'materials';
         }
-        if (['title', 'description', 'dimensions', 'care', 'handmade', 'size'].includes(target.name)) {
+        if (['title', 'description', 'symbolism', 'dimensions', 'care', 'handmade', 'size'].includes(target.name)) {
             return target.name;
         }
 
@@ -47,6 +47,7 @@ export default class extends Controller {
         return {
             title: value('title'),
             description: value('description'),
+            symbolism: value('symbolism'),
             dimensions: value('dimensions'),
             handmade: value('handmade'),
             care: value('care'),
@@ -85,6 +86,7 @@ export default class extends Controller {
         this.reviewing = true;
         this.write('title', profile.title);
         this.write('description', profile.description);
+        this.write('symbolism', profile.symbolism);
         this.write('dimensions', profile.dimensions);
         this.write('handmade', profile.handmade);
         this.write('care', Array.isArray(profile.care) ? profile.care.filter((line) => typeof line === 'string').join('\n') : '');
