@@ -266,7 +266,7 @@ export default class extends Controller {
         }
         this.attachAudio(this.audioFor(true));
         const body = new FormData(this.element);
-        body.delete('generate');
+        body.set('generate', '1');
         const record = this.element.dataset.recordId;
         if (record) {
             body.set('artefact', record);
@@ -279,11 +279,7 @@ export default class extends Controller {
                 method: 'POST',
                 body,
                 credentials: 'same-origin',
-                headers: {
-                    Accept: 'application/json',
-                    'X-Origens-Autosave': '1',
-                    'X-Origens-Generate': '1',
-                },
+                headers: { Accept: 'application/json' },
             });
             let payload = {};
             try {
@@ -411,21 +407,26 @@ export default class extends Controller {
 
     rememberJob(id) {
         const pending = this.pending || { first: true, answer: '', hadAudio: false };
-        localStorage.setItem('origens-profile-job', JSON.stringify({ id, ...pending }));
+        const recordId = this.element.dataset.recordId || '';
+        localStorage.setItem('origens-profile-job', JSON.stringify({ id, recordId, ...pending }));
     }
 
     resumeJob() {
+        const recordId = this.element.dataset.recordId || '';
+        if (recordId === '') {
+            localStorage.removeItem('origens-profile-job');
+            return;
+        }
         let saved = null;
         try {
             saved = JSON.parse(localStorage.getItem('origens-profile-job') || 'null');
         } catch {
             saved = null;
         }
-        if (!saved?.id) {
+        if (!saved?.id || saved.recordId !== recordId) {
             return;
         }
         this.pending = { first: saved.first !== false, answer: saved.answer || '', hadAudio: Boolean(saved.hadAudio) };
-        this.setBusy(true);
         this.poll(saved.id);
     }
 

@@ -359,9 +359,11 @@ export default class extends Controller {
 
         this.errorTarget.hidden = true;
         this.setStatus('Salvando…');
+        const body = new FormData(this.element);
+        body.delete('generate');
         const response = await fetch(this.element.action, {
             method: 'POST',
-            body: new FormData(this.element),
+            body,
             credentials: 'same-origin',
             headers: { Accept: 'application/json', 'X-Origens-Autosave': '1' },
         });
@@ -387,9 +389,6 @@ export default class extends Controller {
         }
         this.persistedValue = true;
         this.element.action = payload.editUrl;
-        this.element.querySelectorAll('[data-identity]').forEach((field) => {
-            field.disabled = true;
-        });
         const title = this.element.querySelector('.editor-title');
         if (title) {
             title.textContent = 'Editar artefacto';

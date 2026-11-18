@@ -310,7 +310,7 @@ final class AdminToolsTest extends WebTestCase
         $path = parse_url($url, PHP_URL_PATH);
         self::assertIsString($path);
         self::assertMatchesRegularExpression('#^/p/[a-f0-9]{32}$#', $path);
-        self::assertSelectorTextContains('body', 'aguardando IA');
+        self::assertSelectorNotExists('.ai-badge');
 
         $client->request('GET', $path);
         self::assertResponseIsSuccessful();
@@ -345,11 +345,10 @@ final class AdminToolsTest extends WebTestCase
         $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
         self::assertIsString($token);
         $client->setServerParameter('HTTP_ACCEPT', 'application/json');
-        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
-        $client->setServerParameter('HTTP_X_ORIGENS_GENERATE', '1');
 
         $client->request('POST', '/admin/records/new', [
             '_token' => $token,
+            'generate' => '1',
             'title' => 'Nome dela',
             'size' => 'M',
             'category' => '1',
@@ -440,11 +439,10 @@ final class AdminToolsTest extends WebTestCase
         $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
         self::assertIsString($token);
         $client->setServerParameter('HTTP_ACCEPT', 'application/json');
-        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
-        $client->setServerParameter('HTTP_X_ORIGENS_GENERATE', '1');
 
         $client->request('POST', '/admin/records/new', [
             '_token' => $token,
+            'generate' => '1',
             'title' => '',
             'size' => 'M',
             'category' => '1',
@@ -478,6 +476,121 @@ final class AdminToolsTest extends WebTestCase
         $cancelled = $em->find(\App\Entity\ProfileJob::class, $job->getId());
         self::assertInstanceOf(\App\Entity\ProfileJob::class, $cancelled);
         self::assertSame('cancelled', $cancelled->getStatus());
+    }
+
+    public function testPhotoUploadAndAutosaveDoNotQueueAndTheButtonDoes(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $jobs = static::getContainer()->get(\App\Repository\ProfileJobRepository::class);
+        self::assertInstanceOf(\App\Repository\ProfileJobRepository::class, $jobs);
+
+        $client->request('POST', '/admin/records/images', ['_token' => $token], ['image' => $this->jpeg()]);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], $jobs->recent());
+
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'generate' => '1',
+            'title' => '',
+            'size' => 'M',
+            'category' => '1',
+            'description' => '',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], $jobs->recent());
+
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '');
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'generate' => '1',
+            'title' => '',
+            'size' => 'G',
+            'category' => '2',
+            'description' => '',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $jobs->recent());
+    }
+
+    public function testSizeAndCategoryStayEditableAndAreNotFilledByAi(): void
+    {
+        $client = $this->ownerClient();
+        $client->disableReboot();
+        $client->getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator(new MockHttpClient(fn () => $this->gemini([
+            'title' => 'Nome da IA',
+            'description' => 'Texto da IA.',
+            'dimensions' => '',
+            'materials' => [['name' => 'Palha', 'note' => '']],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito à mão.',
+            'size' => 'P',
+            'symbolism' => '',
+        ])), 'test-key', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'));
+        $client->request('GET', '/admin/records/new');
+        self::assertSelectorExists('input[name="size"]:not([disabled])');
+        self::assertSelectorExists('input[name="category"]:not([disabled])');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'generate' => '1',
+            'title' => 'Nome dela',
+            'size' => 'G',
+            'category' => '3',
+            'description' => 'Texto dela.',
+            'materials' => [['name' => 'Pedra', 'note' => 'Verde.']],
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        $edit = $client->request('GET', '/admin/records/'.$payload['id'].'/edit');
+        self::assertResponseIsSuccessful();
+        self::assertSame('G', $edit->filter('input[name="size"][checked]')->attr('value'));
+        self::assertSame('3', $edit->filter('input[name="category"][checked]')->attr('value'));
+        self::assertSelectorExists('input[name="size"]:not([disabled])');
+        self::assertSelectorExists('fieldset:not([disabled]) input[name="category"]');
+
+        $jobs = static::getContainer()->get(\App\Repository\ProfileJobRepository::class);
+        self::assertInstanceOf(\App\Repository\ProfileJobRepository::class, $jobs);
+        $saved = static::getContainer()->get(\App\Repository\ArtefactRepository::class);
+        self::assertInstanceOf(\App\Repository\ArtefactRepository::class, $saved);
+        $current = $saved->find($payload['id']);
+        self::assertInstanceOf(\App\Entity\Artefact::class, $current);
+        self::assertSame('G', $current->getSize());
+        self::assertSame(3, $current->getCategory());
+        $before = count($jobs->recent());
+        $client->setServerParameter('HTTP_ACCEPT', '');
+        $client->request('POST', '/admin/records/'.$payload['id'].'/edit', [
+            '_token' => $token,
+            'title' => 'Nome dela',
+            'size' => 'P',
+            'category' => '1',
+            'description' => 'Texto dela.',
+            'materials' => [['name' => 'Pedra', 'note' => 'Verde.']],
+            'images' => $current->getImages(),
+            'record_date' => '2026-11-18',
+        ]);
+        self::assertResponseRedirects('/admin/records/saved');
+        self::assertCount($before, $jobs->recent());
+        $artefact = $saved->find($payload['id']);
+        self::assertInstanceOf(\App\Entity\Artefact::class, $artefact);
+        self::assertSame('P', $artefact->getSize());
+        self::assertSame(1, $artefact->getCategory());
+        self::assertSame('Nome dela', $artefact->getTitle());
     }
 
     private function browser(): KernelBrowser

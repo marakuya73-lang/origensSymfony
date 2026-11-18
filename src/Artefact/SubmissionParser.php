@@ -32,8 +32,14 @@ final class SubmissionParser
             $paths = $this->paths($request, $uploaded);
             $this->images->assertExist($paths);
             $materials = $this->materials($request);
-            $size = $current?->getSize() ?? $request->request->getString('size');
-            $category = $current?->getCategory() ?? $request->request->getInt('category');
+            $size = $request->request->getString('size');
+            $category = $request->request->getInt('category');
+            if ($size === '' && $current instanceof Artefact) {
+                $size = $current->getSize();
+            }
+            if (!$request->request->has('category') && $current instanceof Artefact) {
+                $category = $current->getCategory();
+            }
             $salePriceCents = SalePrice::cents($request->request->getString('sale_price'));
             $data = ArtefactData::fromSubmitted(
                 $request->request->getString('title'),

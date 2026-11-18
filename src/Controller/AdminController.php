@@ -430,19 +430,19 @@ final class AdminController extends AbstractController
             return $this->saveFailed($autosave, $current, $submission->draft, 'Não foi possível salvar a peça. Nenhum código existente foi alterado.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $generate = $request->headers->get('X-Origens-Generate') === '1';
-        $plainSave = !$autosave && ($artefact->getTitle() === '' || $artefact->getDescription() === '');
+        $generate = !$autosave && $request->request->getString('generate') === '1';
         $job = null;
-        if ($generate || $plainSave) {
-            $job = $this->jobRunner->queueFor($artefact, $generate);
+        if ($generate) {
+            $job = $this->jobRunner->queueFor($artefact, true);
             if ($job instanceof ProfileJob) {
                 $request->attributes->set('origens_profile_job', $job->getId());
             }
         }
         $this->jobRunner->noteWhileRunning($artefact);
         $url = $request->getSchemeAndHttpHost().ArtefactRules::publicPath($artefact->getPublicToken());
+        $wantsJson = $autosave || str_contains((string) $request->headers->get('Accept'), 'application/json');
 
-        if ($autosave) {
+        if ($wantsJson) {
             return $this->json([
                 'ok' => true,
                 'confirmed' => true,
