@@ -341,7 +341,7 @@ final class GeminiProfileGeneratorTest extends TestCase
             ]);
         });
         $logged = [];
-        $generator = $this->generator($client, 'test-key', 'gemini-3.8-flash', 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash');
+        $generator = $this->generator($client, 'test-key', 'gemini-3.8-flash', 'gemini-3.1-flash,gemini-3.1-flash-lite,gemini-3.0-flash');
         $generator->onAttempt(function (string $model, int $status, string $detail) use (&$logged): void {
             $logged[] = $model.' '.$status.' '.$detail;
         });
@@ -350,14 +350,14 @@ final class GeminiProfileGeneratorTest extends TestCase
 
         self::assertSame([
             'gemini-3.8-flash',
-            'gemini-2.5-flash',
-            'gemini-2.5-flash-lite',
-            'gemini-2.0-flash',
-            'gemini-2.0-flash',
+            'gemini-3.1-flash',
+            'gemini-3.1-flash-lite',
+            'gemini-3.0-flash',
+            'gemini-3.0-flash',
         ], $models);
         self::assertSame('Cocar de fibra', $profile->title);
         self::assertStringContainsString('gemini-3.8-flash 503 UNAVAILABLE high demand', implode("\n", $logged));
-        self::assertStringContainsString('gemini-2.0-flash 200', implode("\n", $logged));
+        self::assertStringContainsString('gemini-3.0-flash 200', implode("\n", $logged));
     }
 
     public function testTheSameModelIsNotCalledTwice(): void
@@ -497,6 +497,94 @@ final class GeminiProfileGeneratorTest extends TestCase
         self::assertFalse($turn->complete);
         self::assertSame(['Qual a dimensão?', 'O material é fibra ou palha?', 'E a origem?'], $turn->questions);
         self::assertSame(['dimensions'], $turn->changed);
+    }
+
+    public function testARetiredModelIsSkippedAndRememberedForTheDay(): void
+    {
+        $calls = [];
+        $directory = sys_get_temp_dir().'/origens-models-'.bin2hex(random_bytes(4));
+        mkdir($directory.'/uploads/artefacts', 0775, true);
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$calls): MockResponse {
+            if (str_contains($url, '/models')) {
+                return new MockResponse((string) json_encode([
+                    'models' => [
+                        ['name' => 'models/gemini-3.8-flash', 'supportedGenerationMethods' => ['generateContent']],
+                        ['name' => 'models/gemini-3.1-flash-lite', 'supportedGenerationMethods' => ['generateContent']],
+                        ['name' => 'models/gemini-2.5-flash', 'supportedGenerationMethods' => ['generateContent']],
+                        ['name' => 'models/gemini-embedding-001', 'supportedGenerationMethods' => ['embedContent']],
+                    ],
+                ]));
+            }
+            $body = json_decode((string) $options['body'], true);
+            self::assertIsArray($body);
+            $calls[] = $body['model'];
+            if ($body['model'] === 'gemini-3.8-flash') {
+                return new MockResponse('{"error":{"code":404,"status":"NOT_FOUND","message":"This model models/gemini-3.8-flash is no longer available to new users."}}', ['http_code' => 404]);
+            }
+
+            return $this->completed([
+                'title' => 'Cocar de fibra',
+                'description' => 'Uma peça pequena.',
+                'dimensions' => '',
+                'materials' => [['name' => 'Fibra', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+        $logged = [];
+        $generator = new GeminiProfileGenerator($client, 'test-key', 'gemini-3.8-flash', '', $directory.'/uploads/artefacts');
+        $generator->onAttempt(function (string $model, int $status, string $detail) use (&$logged): void {
+            $logged[] = $model.' '.$status.' '.$detail;
+        });
+
+        $profile = $generator->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
+        self::assertSame('Cocar de fibra', $profile->title);
+        self::assertSame(['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite'], $calls);
+        self::assertStringContainsString('gemini-3.8-flash 404 NOT_FOUND This model models/gemini-3.8-flash is no longer available', implode("\n", $logged));
+        self::assertStringNotContainsString('gemini-2.5-flash', implode(',', $calls));
+
+        $before = count($calls);
+        $generator->suggest('jpeg-bytes', 'image/jpeg', null, null, '');
+        self::assertSame(['gemini-3.1-flash-lite', 'gemini-3.1-flash-lite'], array_slice($calls, $before));
+        self::assertFileExists(dirname($directory).'/'.basename($directory).'/gemini-models.json');
+    }
+
+    public function testADeadFallbackDoesNotFailTheAttempt(): void
+    {
+        $models = [];
+        $client = new MockHttpClient(function (string $method, string $url, array $options) use (&$models): MockResponse {
+            $body = json_decode((string) $options['body'], true);
+            self::assertIsArray($body);
+            $models[] = $body['model'];
+            if ($body['model'] === 'gemini-3.8-flash') {
+                return new MockResponse('{"error":{"status":"UNAVAILABLE","message":"high demand"}}', ['http_code' => 503]);
+            }
+            if ($body['model'] === 'gemini-2.5-flash') {
+                return new MockResponse('{"error":{"code":404,"status":"NOT_FOUND","message":"This model models/gemini-2.5-flash is no longer available to new users."}}', ['http_code' => 404]);
+            }
+
+            return $this->completed([
+                'title' => 'Cocar de fibra',
+                'description' => 'Uma peça pequena.',
+                'dimensions' => '',
+                'materials' => [['name' => 'Fibra', 'note' => '']],
+                'care' => ['Guardar seco.'],
+                'handmade' => 'Feito à mão.',
+                'size' => 'M',
+            ]);
+        });
+        $logged = [];
+        $generator = $this->generator($client, 'test-key', 'gemini-3.8-flash', 'gemini-2.5-flash,gemini-3.1-flash-lite');
+        $generator->onAttempt(function (string $model, int $status, string $detail) use (&$logged): void {
+            $logged[] = $model.' '.$status.' '.$detail;
+        });
+
+        $profile = $generator->suggest('jpeg-bytes', 'image/jpeg', null, null, '')->profile;
+
+        self::assertSame('Cocar de fibra', $profile->title);
+        self::assertSame(['gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-3.1-flash-lite'], $models);
+        self::assertStringContainsString('gemini-3.8-flash 503 UNAVAILABLE high demand', implode("\n", $logged));
     }
 
     public function testInvalidModelIsRejectedBeforeTheCall(): void

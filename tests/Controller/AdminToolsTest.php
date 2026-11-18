@@ -43,7 +43,7 @@ final class AdminToolsTest extends WebTestCase
             'care' => ['Manusear com cuidado.'],
             'handmade' => 'O trançado começa pela borda.',
             'size' => 'M',
-        ])), 'test-key', 'gemini-3.8-flash'));
+        ])), 'test-key', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'));
 
         $client->request('POST', '/admin/records/images', ['_token' => $this->token($client, '/admin/records/new')], ['image' => $this->jpeg()]);
         self::assertResponseIsSuccessful();
@@ -86,7 +86,7 @@ final class AdminToolsTest extends WebTestCase
             'questions' => ['Qual o cuidado com a água?'],
             'complete' => false,
             'changed' => [],
-        ])), 'test-key', 'gemini-3.8-flash'));
+        ])), 'test-key', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'));
 
         $client->request('POST', '/admin/records/images', ['_token' => $this->token($client, '/admin/records/new')], ['image' => $this->jpeg()]);
         $uploaded = json_decode((string) $client->getResponse()->getContent(), true);
@@ -340,7 +340,7 @@ final class AdminToolsTest extends WebTestCase
             'handmade' => 'Feito à mão.',
             'size' => 'M',
             'symbolism' => 'Cuidado quieto.',
-        ])), 'test-key', 'gemini-3.8-flash'));
+        ])), 'test-key', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'));
         $client->request('GET', '/admin/records/new');
         $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
         self::assertIsString($token);
