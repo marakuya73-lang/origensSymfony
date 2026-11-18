@@ -36,6 +36,9 @@ class ProfileJob
     #[ORM\Column(length: 255)]
     private string $imagePath;
 
+    #[ORM\Column(type: Types::GUID, nullable: true)]
+    private ?string $artefactId = null;
+
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $audioPath = null;
 
@@ -135,6 +138,21 @@ class ProfileJob
     public function getImagePath(): string
     {
         return $this->imagePath;
+    }
+
+    public function getArtefactId(): ?string
+    {
+        return $this->artefactId;
+    }
+
+    public function setArtefactId(?string $artefactId): void
+    {
+        $this->artefactId = $artefactId;
+    }
+
+    public function setImagePath(string $imagePath): void
+    {
+        $this->imagePath = $imagePath;
     }
 
     public function getAudioPath(): ?string

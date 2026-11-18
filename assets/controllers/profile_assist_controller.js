@@ -4,7 +4,7 @@ const MAX_AUDIO = 10 * 1024 * 1024;
 const MAX_RECORDING = 180000;
 
 export default class extends Controller {
-    static targets = ['notes', 'generate', 'toast', 'toastMessage', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume'];
+    static targets = ['notes', 'generate', 'toast', 'toastMessage', 'status', 'chat', 'thread', 'composer', 'reply', 'send', 'done', 'resume', 'link', 'badge'];
     static values = { url: String, token: String };
 
     connect() {
@@ -185,6 +185,9 @@ export default class extends Controller {
         this.slots[slot].clip = blob;
         this.slots[slot].file = null;
         this.slots[slot].durationMs = this.capturedMs || 0;
+        if (slot === 'intro') {
+            this.attachAudio(new File([blob], 'audio.webm', { type: blob.type || 'audio/webm' }));
+        }
         this.showReady(slot, blob);
         this.paintIdle(slot, button);
         this.setGenerateEnabled(true);
@@ -209,6 +212,9 @@ export default class extends Controller {
         this.slots[slot].clip = null;
         this.slots[slot].file = file;
         this.slots[slot].durationMs = 0;
+        if (slot === 'intro') {
+            this.attachAudio(file);
+        }
         this.showReady(slot, file);
         this.paintIdle(slot, event.currentTarget.closest('.recorder')?.querySelector('.record-btn'));
     }
@@ -242,8 +248,62 @@ export default class extends Controller {
 
     async generate(event) {
         event.preventDefault();
-        this.history = [];
-        await this.ask({ first: true });
+        await this.saveAndGenerate(event);
+    }
+
+    async saveAndGenerate(event) {
+        event.preventDefault();
+        if (this.busy) {
+            return;
+        }
+        if (this.recorder?.state === 'recording') {
+            this.showError('A gravação ainda está aberta. Toque de novo no microfone para parar e depois gere o perfil.');
+            return;
+        }
+        if (!this.element.querySelector('[name="images[]"]')?.value) {
+            this.showError('Falta a foto principal. Toque em “Tirar ou escolher foto”, acima, e tente de novo.');
+            return;
+        }
+        this.attachAudio(this.audioFor(true));
+        const body = new FormData(this.element);
+        body.set('generate', '1');
+        const record = this.element.dataset.recordId;
+        if (record) {
+            body.set('artefact', record);
+        }
+        this.setBusy(true);
+        this.clearMessage();
+        this.setStatus('Salvando…');
+        try {
+            const response = await fetch(this.element.action, {
+                method: 'POST',
+                body,
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json', 'X-Origens-Autosave': '1' },
+            });
+            let payload = {};
+            try {
+                payload = await response.json();
+            } catch {
+                payload = {};
+            }
+            if (!response.ok || !payload.ok || !payload.url) {
+                this.setBusy(false);
+                this.showError(payload.error || 'Não foi possível salvar a peça.');
+                return;
+            }
+            this.showSaved(payload);
+            this.setBusy(false);
+            this.setStatus('Gravado. Pode registrar outra peça.');
+            if (payload.job) {
+                this.jobId = payload.job;
+                this.rememberJob(payload.job);
+                this.poll(payload.job);
+            }
+        } catch {
+            this.setBusy(false);
+            this.showError('Não foi possível salvar a peça.');
+        }
     }
 
     async reply(event) {
@@ -304,6 +364,10 @@ export default class extends Controller {
         body.append('history', JSON.stringify(this.history));
         body.append('form', JSON.stringify(typeof editor.currentForm === 'function' ? editor.currentForm() : {}));
         body.append('touched', JSON.stringify(typeof editor.touchedFields === 'function' ? editor.touchedFields() : []));
+        const record = this.element.dataset.recordId;
+        if (record) {
+            body.append('artefact', record);
+        }
         if (audio) {
             const name = audio instanceof File && audio.name ? audio.name : this.filename(audio);
             body.append('audio', audio, name);
@@ -389,10 +453,13 @@ export default class extends Controller {
             }
             if (payload.status === 'failed') {
                 localStorage.removeItem('origens-profile-job');
+                this.jobId = id;
                 this.setBusy(false);
+                this.paintBadge('falhou');
                 this.showError(payload.error || 'Não foi possível gerar o perfil.');
                 return;
             }
+            this.paintBadge(payload.status === 'done' ? 'pronto' : (payload.status === 'queued' ? 'aguardando IA' : 'gerando'));
             this.setStatus(payload.message || 'Gerando…');
             const label = this.hasGenerateTarget ? this.generateTarget.querySelector('[data-generate-label]') : null;
             if (label && payload.message) {
@@ -421,12 +488,89 @@ export default class extends Controller {
         this.setBusy(false);
     }
 
-    retry(event) {
+    async retry(event) {
         event.preventDefault();
-        if (!this.pending || this.busy) {
+        if (this.busy) {
             return;
         }
-        this.ask(this.pending);
+        if (!this.jobId) {
+            if (this.pending) {
+                this.ask(this.pending);
+            }
+            return;
+        }
+        const body = new FormData();
+        body.append('_token', this.tokenValue);
+        this.dismissToast();
+        this.setStatus('Na fila…');
+        this.paintBadge('aguardando IA');
+        try {
+            const response = await fetch(`${this.urlValue}/${this.jobId}/retry`, {
+                method: 'POST',
+                body,
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+            });
+            let payload = {};
+            try {
+                payload = await response.json();
+            } catch {
+                payload = {};
+            }
+            if (!response.ok || !payload.ok) {
+                this.showError(payload.error || 'Não foi possível gerar o perfil.');
+                return;
+            }
+            this.rememberJob(this.jobId);
+            this.poll(this.jobId);
+        } catch {
+            this.showError('Não foi possível gerar o perfil.');
+        }
+    }
+
+    showSaved(payload) {
+        if (payload.id) {
+            this.element.dataset.recordId = payload.id;
+        }
+        if (payload.editUrl) {
+            this.element.action = payload.editUrl;
+        }
+        const editor = this.application.getControllerForElementAndIdentifier(this.element, 'artefact-editor');
+        if (editor && typeof editor.remember === 'function') {
+            editor.remember(payload);
+        }
+        if (this.hasLinkTarget && payload.url) {
+            this.linkTarget.hidden = false;
+            this.linkTarget.textContent = payload.url;
+        }
+        this.paintBadge(payload.ai || 'aguardando IA');
+    }
+
+    paintBadge(label) {
+        if (!this.hasBadgeTarget || !label) {
+            return;
+        }
+        this.badgeTarget.hidden = false;
+        this.badgeTarget.textContent = label;
+    }
+
+    attachAudio(file) {
+        if (!(file instanceof Blob) || file.size <= 0) {
+            return;
+        }
+        let input = this.element.querySelector('input[data-saved-audio]');
+        if (!(input instanceof HTMLInputElement)) {
+            input = document.createElement('input');
+            input.type = 'file';
+            input.name = 'audio';
+            input.hidden = true;
+            input.dataset.savedAudio = '1';
+            this.element.appendChild(input);
+        }
+        const named = file instanceof File ? file : new File([file], 'audio.webm', { type: file.type || 'audio/webm' });
+        const transfer = new DataTransfer();
+        transfer.items.add(named);
+        input.files = transfer.files;
     }
 
     dismissToast() {
@@ -443,7 +587,7 @@ export default class extends Controller {
             this.generateTarget.setAttribute('aria-busy', on ? 'true' : 'false');
             const label = this.generateTarget.querySelector('[data-generate-label]');
             if (label) {
-                label.textContent = on ? 'Gerando…' : '✨ Gerar perfil';
+                label.textContent = on ? 'Salvando…' : 'Salvar e gerar com IA';
             }
         }
         this.sendTargets.forEach((button) => {

@@ -79,6 +79,9 @@
                         {% endif %}
                         <div>
                             <p class="code">{{ row.code }}</p>
+                            {% if row.aiLabel %}
+                                <p class="ai-badge">{{ row.aiLabel }}</p>
+                            {% endif %}
                             <p class="row-title-mobile">{{ row.title }}</p>
                             <p class="quiet row-date-mobile">{{ row.createdOn }}</p>
                             {% if row.price %}
@@ -103,6 +106,12 @@
                                 </button>
                             </form>
                             <a class="btn btn-ghost btn-icon" href="{{ path('admin_artefact_edit', {id: row.id}) }}" title="Editar artefacto" aria-label="Editar {{ row.code }}">{{ icons.svg('pencil') }}</a>
+                            {% if row.image %}
+                                <form method="post" action="{{ path('admin_artefact_generate', {id: row.id}) }}" data-turbo="false">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('submit') }}">
+                                    <button type="submit" class="btn btn-ghost">Gerar novamente</button>
+                                </form>
+                            {% endif %}
                         </div>
                     </article>
                 {% endfor %}

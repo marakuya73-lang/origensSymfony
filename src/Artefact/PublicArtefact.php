@@ -25,6 +25,7 @@ final class PublicArtefact
         public array $care,
         public string $recordDate,
         public array $images,
+        public bool $pending = false,
     ) {
     }
 
@@ -45,7 +46,7 @@ final class PublicArtefact
         return new self(
             path: $artefact->getPublicToken(),
             reference: $artefact->getCode(),
-            title: $artefact->getTitle(),
+            title: $artefact->getTitle() !== '' ? $artefact->getTitle() : 'Peça em registro',
             lede: $artefact->getDescription(),
             symbolism: $artefact->getSymbolism(),
             dimensions: $artefact->getDimensions() !== '' ? $artefact->getDimensions() : $artefact->getSize(),
@@ -54,6 +55,7 @@ final class PublicArtefact
             care: $artefact->getCare(),
             recordDate: $artefact->getRecordDate()->format('d / m / Y'),
             images: $photos,
+            pending: in_array($artefact->getAiStatus(), ['queued', 'running'], true),
         );
     }
 }

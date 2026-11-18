@@ -58,6 +58,16 @@ a { color: inherit; }
 }
 
 .quiet { color: var(--muted); font-size: 0.875rem; line-height: 1.6; }
+.ai-badge {
+    display: inline-block;
+    margin-top: 0.35rem;
+    padding: 0.1rem 0.55rem;
+    border: 1px solid var(--rule);
+    border-radius: 999px;
+    color: var(--olive);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+}
 .mono { font-family: var(--font-mono); }
 .pending { font-style: italic; color: var(--clay); }
 .icon { width: 1.05rem; height: 1.05rem; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }

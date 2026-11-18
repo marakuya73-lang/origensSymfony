@@ -20,6 +20,7 @@
             data-artefact-editor-token-value="{{ csrf_token('submit') }}"
             data-profile-assist-url-value="{{ profileUrl }}"
             data-profile-assist-token-value="{{ csrf_token('submit') }}"
+            data-record-id="{{ recordId|default('') }}"
             data-artefact-editor-persisted-value="{{ draft.locked ? 'true' : 'false' }}"
             data-action="submit->artefact-editor#guard focusout->artefact-editor#save change->artefact-editor#save"
         >
@@ -28,13 +29,15 @@
                 <p class="ai-toast-kicker" id="ai-toast-title">Não foi possível gerar</p>
                 <p data-profile-assist-target="toastMessage"></p>
                 <div class="assist-actions">
-                    <button type="button" class="btn" data-action="profile-assist#retry">Tentar de novo</button>
+                    <button type="button" class="btn" data-action="profile-assist#retry">Tentar novamente</button>
                     <button type="button" class="btn btn-ghost" data-action="profile-assist#dismissToast">Fechar</button>
                 </div>
             </div>
             <div>
                 <h1 class="editor-title">{{ draft.locked ? 'Editar artefacto' : 'Novo artefacto' }}</h1>
                 <p class="label editor-kicker">{{ draft.code ?: 'ORIGENS · Novo registro' }}</p>
+                <p class="ai-badge" data-profile-assist-target="badge" {% if not aiLabel|default('') %}hidden{% endif %}>{{ aiLabel|default('') }}</p>
+                <p class="hint" data-profile-assist-target="link" {% if not publicUrl|default('') %}hidden{% endif %}>{{ publicUrl|default('') }}</p>
             </div>
 
             <fieldset class="photo-set photo-lead">
@@ -82,9 +85,9 @@
             <details class="assist-fold" data-assist>
                 <summary class="assist-summary">✨ Preencher com IA</summary>
                 <div class="assist-body">
-                    <p class="assist-lead">A foto principal, um áudio ou algumas notas sugerem o perfil. O nome sai poético; a descrição guarda a história e o sentido que você contar. Material, dimensão e cuidados ficam factuais. Nada é salvo neste passo.</p>
+                    <p class="assist-lead">A peça é gravada na hora, com o link permanente. A IA escreve o texto depois, sem apagar o que você mesma escreveu. Pode sair e registrar a próxima.</p>
                     <label class="field">Notas (opcional)
-                        <textarea rows="3" maxlength="4000" data-profile-assist-target="notes" placeholder="O que a peça é, de onde veio o material, o que não aparece na foto."></textarea>
+                        <textarea name="notes" rows="3" maxlength="4000" data-profile-assist-target="notes" placeholder="O que a peça é, de onde veio o material, o que não aparece na foto.">{{ notes|default('') }}</textarea>
                     </label>
                     <div class="recorder" data-slot="intro">
                         <button type="button" class="record-btn" data-action="profile-assist#toggleRecord" aria-pressed="false">
@@ -104,7 +107,7 @@
                     </div>
                     <p class="hint">O áudio é opcional.</p>
                     <div class="assist-actions">
-                        <button type="button" class="btn generate-btn" data-profile-assist-target="generate" data-action="profile-assist#generate"><span data-generate-label>✨ Gerar perfil</span></button>
+                        <button type="submit" class="btn generate-btn" name="generate" value="1" data-profile-assist-target="generate" data-action="profile-assist#saveAndGenerate"><span data-generate-label>Salvar e gerar com IA</span></button>
                     </div>
                     <div class="chat" data-profile-assist-target="chat" hidden>
                         <div class="chat-thread" data-profile-assist-target="thread"></div>
@@ -136,8 +139,9 @@
                 </div>
             </details>
 
+            <input type="hidden" name="locked" value="[]" data-artefact-editor-target="locked">
             <label class="field">Nome do artefacto
-                <input name="title" required maxlength="180" value="{{ draft.title }}" autofocus>
+                <input name="title" maxlength="180" value="{{ draft.title }}" autofocus>
             </label>
 
             <div class="split">
@@ -196,7 +200,7 @@
                         <div class="material" data-material>
                             <div class="material-line">
                                 <label class="field" data-material-label>Material {{ loop.index }}
-                                    <input required maxlength="150" name="materials[{{ loop.index0 }}][name]" value="{{ material.name }}" data-name>
+                                    <input maxlength="150" name="materials[{{ loop.index0 }}][name]" value="{{ material.name }}" data-name>
                                 </label>
                                 <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#removeMaterial" data-remove-material aria-label="Remover material {{ loop.index }}" title="Remover material" {% if draft.materials|length == 1 %}disabled{% endif %}>{{ icons.svg('trash') }}</button>
                             </div>
@@ -211,7 +215,7 @@
                     <div class="material" data-material>
                         <div class="material-line">
                             <label class="field" data-material-label>Material
-                                <input required maxlength="150" name="materials[__INDEX__][name]" data-name>
+                                <input maxlength="150" name="materials[__INDEX__][name]" data-name>
                             </label>
                             <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#removeMaterial" data-remove-material aria-label="Remover material" title="Remover material">{{ icons.svg('trash') }}</button>
                         </div>
@@ -223,10 +227,10 @@
             </fieldset>
 
             <label class="field">Cuidados — uma orientação por linha
-                <textarea name="care" required rows="4">{{ draft.care }}</textarea>
+                <textarea name="care" rows="4">{{ draft.care }}</textarea>
             </label>
             <label class="field">Feito à mão
-                <textarea class="handmade-field" name="handmade" required rows="7" maxlength="5000">{{ draft.handmade }}</textarea>
+                <textarea class="handmade-field" name="handmade" rows="7" maxlength="5000">{{ draft.handmade }}</textarea>
             </label>
 
             <p class="form-error" role="alert" data-artefact-editor-target="error" {% if not error %}hidden{% endif %}>{{ error }}</p>

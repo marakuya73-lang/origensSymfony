@@ -170,7 +170,7 @@ final class AdminToolsTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('button[data-profile-assist-target="generate"]');
-        self::assertSelectorTextContains('button[data-profile-assist-target="generate"]', 'Gerar perfil');
+        self::assertSelectorTextContains('button[data-profile-assist-target="generate"]', 'Salvar e gerar com IA');
         self::assertSelectorExists('button[data-profile-assist-target="generate"]:not([disabled])');
         self::assertSelectorExists('[data-record-duration]');
         self::assertSelectorExists('details.assist-fold');
@@ -280,6 +280,122 @@ final class AdminToolsTest extends WebTestCase
         ]);
         self::assertResponseStatusCodeSame(422);
         self::assertSelectorTextContains('[role="alert"]', 'Selecione ao menos uma peça');
+    }
+
+    public function testADraftIsSavedWithItsPublicLinkAndQueuesTheText(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => '',
+            'size' => 'M',
+            'category' => '1',
+            'description' => '',
+            'notes' => 'Palha do cerrado.',
+            'sale_price' => 'R$ 180,00',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+
+        self::assertResponseRedirects('/admin/records/saved');
+        $client->followRedirect();
+        $url = trim($client->getCrawler()->filter('.saved-url')->text());
+        $path = parse_url($url, PHP_URL_PATH);
+        self::assertIsString($path);
+        self::assertMatchesRegularExpression('#^/p/[a-f0-9]{32}$#', $path);
+        self::assertSelectorTextContains('body', 'aguardando IA');
+
+        $client->request('GET', $path);
+        self::assertResponseIsSuccessful();
+        $html = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('Peça em registro', $html);
+        self::assertStringNotContainsString('180,00', $html);
+        self::assertStringNotContainsString('R$', $html);
+        self::assertStringContainsString('<img', $html);
+
+        $client->request('GET', '/admin/records');
+        self::assertSelectorTextContains('body', 'Gerar novamente');
+        self::assertStringContainsString('R$ 180,00', (string) $client->getResponse()->getContent());
+    }
+
+    public function testSavingAndGeneratingKeepsManualText(): void
+    {
+        $client = $this->ownerClient();
+        $client->disableReboot();
+        $client->getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator(new MockHttpClient(fn () => $this->gemini([
+            'title' => 'Nome da IA',
+            'description' => 'Texto escrito pela IA.',
+            'dimensions' => '',
+            'materials' => [['name' => 'Palha', 'note' => 'Clara.']],
+            'care' => ['Guardar seco.'],
+            'handmade' => 'Feito à mão.',
+            'size' => 'M',
+            'symbolism' => 'Cuidado quieto.',
+        ])), 'test-key', 'gemini-3.8-flash'));
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->setServerParameter('HTTP_ACCEPT', 'application/json');
+        $client->setServerParameter('HTTP_X_ORIGENS_AUTOSAVE', '1');
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'generate' => '1',
+            'title' => 'Nome dela',
+            'size' => 'M',
+            'category' => '1',
+            'description' => '',
+            'materials' => [['name' => 'Pedra', 'note' => 'Verde.']],
+            'notes' => 'Uma pedra verde.',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($payload);
+        self::assertTrue($payload['confirmed']);
+        self::assertMatchesRegularExpression('#/p/[a-f0-9]{32}$#', (string) $payload['url']);
+
+        $path = parse_url((string) $payload['url'], PHP_URL_PATH);
+        self::assertIsString($path);
+        $client->request('GET', $path);
+        self::assertResponseIsSuccessful();
+        $html = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('Nome dela', $html);
+        self::assertStringContainsString('Pedra', $html);
+        self::assertStringContainsString('Texto escrito pela IA.', $html);
+        self::assertStringNotContainsString('Nome da IA', $html);
+    }
+
+    public function testACompleteSaveDoesNotQueueAi(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => 'Cocar pronto',
+            'size' => 'M',
+            'category' => '1',
+            'description' => 'Texto já escrito.',
+            'materials' => [['name' => 'Pedra', 'note' => '']],
+            'care' => 'Guardar seco.',
+            'handmade' => 'Feito à mão.',
+            'record_date' => '2026-11-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+        self::assertResponseRedirects('/admin/records/saved');
+        $client->followRedirect();
+        self::assertSelectorNotExists('.ai-badge');
     }
 
     private function browser(): KernelBrowser

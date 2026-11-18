@@ -4,7 +4,7 @@ const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export default class extends Controller {
-    static targets = ['list', 'file', 'materials', 'materialTemplate', 'photoTemplate', 'error', 'uploadLabel', 'status'];
+    static targets = ['list', 'file', 'materials', 'materialTemplate', 'photoTemplate', 'error', 'uploadLabel', 'status', 'locked'];
     static values = { uploadUrl: String, token: String, persisted: Boolean, max: { type: Number, default: 12 } };
 
     connect() {
@@ -22,6 +22,9 @@ export default class extends Controller {
         const field = this.fieldName(event.target);
         if (field) {
             this.touched.add(field);
+            if (this.hasLockedTarget) {
+                this.lockedTarget.value = JSON.stringify(this.touchedFields());
+            }
         }
     }
 

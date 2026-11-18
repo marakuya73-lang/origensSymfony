@@ -92,6 +92,14 @@ final class AdminController extends AbstractController
         }
 
         $job = new ProfileJob($path);
+        $linked = $this->artefacts->find($request->request->getString('artefact'));
+        if ($linked instanceof Artefact) {
+            $job->setArtefactId($linked->getId());
+            $linked->setAiStatus('queued');
+            if ($notes !== '') {
+                $linked->setNotes($notes);
+            }
+        }
         $job->setNotes($notes);
         $job->setAnswer($answer);
         $job->setHistory($request->request->getString('history') !== '' ? $request->request->getString('history') : '[]');
@@ -247,6 +255,46 @@ final class AdminController extends AbstractController
         return $this->save($request, $this->findArtefact($id));
     }
 
+    #[Route('/admin/records/{id}/generate', name: 'admin_artefact_generate', methods: ['POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
+    public function generateAgain(Request $request, string $id): Response
+    {
+        if (!$this->isCsrfTokenValid('submit', $request->request->getString('_token'))) {
+            return $this->redirectToRoute('admin_records');
+        }
+
+        $artefact = $this->findArtefact($id);
+        $job = $this->jobRunner->queueFor($artefact, true);
+        if ($job instanceof ProfileJob) {
+            $request->attributes->set('origens_profile_job', $job->getId());
+        }
+
+        return $this->redirectToRoute('admin_records');
+    }
+
+    #[Route('/admin/records/profile/{id}/retry', name: 'admin_artefact_profile_retry', methods: ['POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
+    public function retryProfile(Request $request, string $id): JsonResponse
+    {
+        if (!$this->isCsrfTokenValid('submit', $request->request->getString('_token'))) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível gerar o perfil. Tente novamente.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        $job = $this->jobs->find($id);
+        if (!$job instanceof ProfileJob) {
+            return $this->json(['ok' => false, 'error' => 'Não foi possível encontrar essa geração.'], Response::HTTP_NOT_FOUND);
+        }
+        if ($job->getStatus() === 'running') {
+            return $this->json(['ok' => true, 'job' => $job->getId(), 'status' => 'running', 'message' => 'Gerando…']);
+        }
+        $this->jobRunner->requeue($job);
+        $request->attributes->set('origens_profile_job', $job->getId());
+
+        return $this->json([
+            'ok' => true,
+            'job' => $job->getId(),
+            'status' => 'queued',
+            'message' => 'Na fila…',
+        ]);
+    }
+
     #[Route('/admin/records/{id}/delete', name: 'admin_artefact_delete', methods: ['POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
     public function delete(Request $request, string $id): Response
     {
@@ -328,31 +376,66 @@ final class AdminController extends AbstractController
             return $this->saveFailed($autosave, $current, $submission->draft, $submission->error ?? 'Não foi possível salvar. Tente novamente.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        $touched = ProfileExchange::touched($request->request->getString('locked'));
+        $notes = trim($request->request->getString('notes'));
+        if (mb_strlen($notes) > 4000) {
+            $notes = rtrim(mb_substr($notes, 0, 4000));
+        }
+        $audioPath = null;
+        $audioMime = null;
+        $audio = AudioClip::read($request->files->get('audio'));
+        if ($audio !== null) {
+            [$bytes, $audioMime] = $audio;
+            try {
+                $audioPath = $this->jobRunner->storeAudio($bytes, $audioMime);
+            } catch (InvalidArtefact $exception) {
+                return $this->saveFailed($autosave, $current, $submission->draft, $exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        }
+
         try {
             if ($current instanceof Artefact) {
-                foreach ($this->registrar->update($current, $submission->data) as $path) {
+                foreach ($this->registrar->update($current, $submission->data, $touched, $notes, $audioPath, $audioMime) as $path) {
                     $this->images->delete($path);
                 }
-                $artefact = $current;
+                $artefact = $this->artefacts->find($current->getId());
+                if (!$artefact instanceof Artefact) {
+                    throw new InvalidArtefact('Não foi possível gravar a peça. O arquivo não confirmou a gravação.');
+                }
             } else {
-                $artefact = $this->registrar->create($submission->data);
+                $artefact = $this->registrar->create($submission->data, $touched, $notes, $audioPath, $audioMime);
             }
         } catch (UniqueConstraintViolationException|InvalidArtefact) {
             return $this->saveFailed($autosave, $current, $submission->draft, 'Não foi possível salvar a peça. Nenhum código existente foi alterado.', Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        $force = $request->request->getString('generate') === '1';
+        $job = null;
+        if ($force || !$autosave) {
+            $job = $this->jobRunner->queueFor($artefact, $force);
+            if ($job instanceof ProfileJob) {
+                $request->attributes->set('origens_profile_job', $job->getId());
+            }
+        }
+        $url = $request->getSchemeAndHttpHost().ArtefactRules::publicPath($artefact->getPublicToken());
+
         if ($autosave) {
             return $this->json([
                 'ok' => true,
+                'confirmed' => true,
                 'id' => $artefact->getId(),
                 'code' => $artefact->getCode(),
+                'url' => $url,
+                'ai' => $artefact->aiLabel(),
+                'job' => $job?->getId(),
                 'editUrl' => $this->generateUrl('admin_artefact_edit', ['id' => $artefact->getId()]),
             ]);
         }
 
         $request->getSession()->set('artefact_saved', [
             'code' => $artefact->getCode(),
-            'url' => $request->getSchemeAndHttpHost().ArtefactRules::publicPath($artefact->getPublicToken()),
+            'url' => $url,
+            'ai' => $artefact->aiLabel(),
         ]);
 
         return $this->redirectToRoute('admin_artefact_saved');
@@ -369,14 +452,22 @@ final class AdminController extends AbstractController
 
     private function editor(?Artefact $current, ArtefactDraft $draft, string $error, int $status = 200): Response
     {
+        $token = $current?->getPublicToken() ?? '';
+
         return $this->admin('admin/editor.html.twig', [
             'draft' => $draft,
             'error' => $error,
+            'notes' => $current?->getNotes() ?? '',
+            'aiLabel' => $current?->aiLabel() ?? '',
+            'publicUrl' => $current instanceof Artefact && ArtefactRules::isValidToken($token)
+                ? ArtefactRules::publicPath($token)
+                : '',
             'action' => $current instanceof Artefact
                 ? $this->generateUrl('admin_artefact_edit', ['id' => $current->getId()])
                 : $this->generateUrl('admin_artefact_new'),
             'uploadUrl' => $this->generateUrl('admin_artefact_upload'),
             'profileUrl' => $this->generateUrl('admin_artefact_profile'),
+            'recordId' => $current?->getId() ?? '',
         ], $status);
     }
 
@@ -390,7 +481,7 @@ final class AdminController extends AbstractController
             $rows[] = [
                 'id' => $artefact->getId(),
                 'code' => $artefact->getCode(),
-                'title' => $artefact->getTitle(),
+                'title' => $artefact->getTitle() !== '' ? $artefact->getTitle() : 'Peça em registro',
                 'createdOn' => $artefact->createdOn(),
                 'price' => SalePrice::brl($artefact->getSalePriceCents()),
                 'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,
@@ -398,6 +489,8 @@ final class AdminController extends AbstractController
                     ? $request->getSchemeAndHttpHost().ArtefactRules::publicPath($token)
                     : '',
                 'path' => ArtefactRules::isValidToken($token) ? ArtefactRules::publicPath($token) : '',
+                'aiLabel' => $artefact->aiLabel(),
+                'aiStatus' => $artefact->getAiStatus(),
             ];
         }
 

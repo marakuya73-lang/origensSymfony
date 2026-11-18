@@ -34,22 +34,27 @@ final class ProfileJobRunnerTest extends KernelTestCase
         self::assertFileExists($this->log());
     }
 
-    public function testABusyModelIsQueuedAgainUntilTheThirdFailure(): void
+    public function testABusyModelIsQueuedAgainUntilTheSixthFailure(): void
     {
-        $this->useGenerator(new MockHttpClient(fn () => new MockResponse('{"error":{"status":"RESOURCE_EXHAUSTED"}}', ['http_code' => 429])));
+        $this->useGenerator(new MockHttpClient(fn () => new MockResponse('{"error":{"status":"RESOURCE_EXHAUSTED","message":"high demand"}}', ['http_code' => 429])));
         $job = $this->job();
         $runner = $this->runner();
         $runner->execute($job);
         self::assertSame('queued', $job->getStatus());
         self::assertSame(1, $job->getAttempts());
+        self::assertGreaterThan(new \DateTimeImmutable('+10 seconds'), $job->getRunAt());
+        self::assertStringContainsString('429', (string) file_get_contents($this->log()));
 
-        $job->setRunAt(new \DateTimeImmutable('-1 second'));
-        $runner->execute($job);
+        for ($attempt = 2; $attempt <= 5; ++$attempt) {
+            $job->setRunAt(new \DateTimeImmutable('-1 second'));
+            $runner->execute($job);
+            self::assertSame('queued', $job->getStatus(), 'attempt '.$attempt);
+        }
         $job->setRunAt(new \DateTimeImmutable('-1 second'));
         $runner->execute($job);
 
         self::assertSame('failed', $job->getStatus());
-        self::assertSame(3, $job->getAttempts());
+        self::assertSame(6, $job->getAttempts());
         self::assertSame(ProfileGenerationFailed::LIMITED, $job->getError());
     }
 
@@ -105,6 +110,46 @@ final class ProfileJobRunnerTest extends KernelTestCase
         $again = $em->find(ProfileJob::class, $job->getId());
         self::assertInstanceOf(ProfileJob::class, $again);
         self::assertSame('done', $again->getStatus());
+    }
+
+    public function testAFinishedJobFillsEmptyFieldsAndKeepsManualText(): void
+    {
+        $this->useGenerator(new MockHttpClient(fn () => $this->profile()));
+        $this->job();
+        $directory = static::getContainer()->getParameter('artefact_upload_dir');
+        self::assertIsString($directory);
+        $relative = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/ffffffff-ffff-4fff-8fff-ffffffffffff.jpg';
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $registrar = static::getContainer()->get(\App\Artefact\ArtefactRegistrar::class);
+        self::assertInstanceOf(\App\Artefact\ArtefactRegistrar::class, $registrar);
+        $open = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted('', 'M', 1, '', '', [], '', '', [$relative], '2026-11-18', 18000), [], 'Palha do cerrado.');
+        $named = $registrar->create(\App\Artefact\ArtefactData::fromSubmitted('Nome dela', 'M', 1, '', '', [['name' => 'Pedra', 'note' => 'Verde.']], '', '', [$relative], '2026-11-18'));
+
+        $openJob = new ProfileJob($relative);
+        $openJob->setArtefactId($open->getId());
+        $openJob->setNotes('Palha do cerrado.');
+        $namedJob = new ProfileJob($relative);
+        $namedJob->setArtefactId($named->getId());
+        $em->persist($openJob);
+        $em->persist($namedJob);
+        $em->flush();
+
+        $runner = $this->runner();
+        $runner->execute($openJob);
+        $runner->execute($namedJob);
+        $em->clear();
+
+        $filled = $em->find(\App\Entity\Artefact::class, $open->getId());
+        $kept = $em->find(\App\Entity\Artefact::class, $named->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $filled);
+        self::assertInstanceOf(\App\Entity\Artefact::class, $kept);
+        self::assertSame('Abano de palha', $filled->getTitle());
+        self::assertSame('done', $filled->getAiStatus());
+        self::assertSame('Palha', $filled->getMaterials()[0]['name']);
+        self::assertSame('Nome dela', $kept->getTitle());
+        self::assertSame('Pedra', $kept->getMaterials()[0]['name']);
+        self::assertNotSame('', $kept->getDescription());
     }
 
     public function testAStaleRunningJobIsQueuedAgain(): void

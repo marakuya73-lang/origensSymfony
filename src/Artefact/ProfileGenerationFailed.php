@@ -18,7 +18,7 @@ final class ProfileGenerationFailed extends \RuntimeException
 
     public const INVALID_MODEL = 'O modelo GEMINI_MODEL configurado não é válido.';
 
-    public function __construct(string $message, private readonly int $status)
+    public function __construct(string $message, private readonly int $status, private readonly string $detail = '')
     {
         parent::__construct($message);
     }
@@ -26,5 +26,10 @@ final class ProfileGenerationFailed extends \RuntimeException
     public function status(): int
     {
         return $this->status;
+    }
+
+    public function detail(): string
+    {
+        return $this->detail !== '' ? $this->detail : $this->getMessage();
     }
 }
