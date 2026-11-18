@@ -47,6 +47,21 @@ class ProfileJobRepository extends ServiceEntityRepository
     }
 
     /** @return list<ProfileJob> */
+    public function queued(int $limit): array
+    {
+        /** @var list<ProfileJob> $jobs */
+        $jobs = $this->createQueryBuilder('j')
+            ->andWhere('j.status = :status')
+            ->setParameter('status', 'queued')
+            ->orderBy('j.createdAt', \SortDirection::Ascending)
+            ->setMaxResults(max(1, $limit))
+            ->getQuery()
+            ->getResult();
+
+        return $jobs;
+    }
+
+    /** @return list<ProfileJob> */
     public function recent(int $limit = 20): array
     {
         /** @var list<ProfileJob> $jobs */

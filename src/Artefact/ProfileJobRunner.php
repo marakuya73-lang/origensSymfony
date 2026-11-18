@@ -76,6 +76,50 @@ final class ProfileJobRunner
         }
     }
 
+    /** @var null|\Closure(string, int, string): void */
+    private ?\Closure $attemptListener = null;
+
+    /** @param \Closure(string, int, string): void $listener */
+    public function onAttempt(\Closure $listener): void
+    {
+        $this->attemptListener = $listener;
+    }
+
+    public function chainStamp(): string
+    {
+        return 'cap-120-skip-404';
+    }
+
+    public function chainStampPath(): string
+    {
+        return dirname($this->logPath()).'/chain-stamp.txt';
+    }
+
+    public function resetBackoff(): int
+    {
+        return (int) $this->em->getConnection()->executeStatement(
+            "UPDATE profile_jobs SET run_at = :now WHERE status = 'queued'",
+            ['now' => (new \DateTimeImmutable())->format('Y-m-d H:i:s')],
+        );
+    }
+
+    public function releaseBackoffAfterDeploy(): int
+    {
+        $path = $this->chainStampPath();
+        $current = is_file($path) ? trim((string) file_get_contents($path)) : '';
+        if ($current === $this->chainStamp()) {
+            return 0;
+        }
+        $released = $this->resetBackoff();
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            return $released;
+        }
+        file_put_contents($path, $this->chainStamp());
+
+        return $released;
+    }
+
     public function runDue(int $limit, int $seconds): int
     {
         $this->releaseStale();
@@ -87,6 +131,19 @@ final class ProfileJobRunner
             if (!$job instanceof ProfileJob) {
                 break;
             }
+            $this->execute($job);
+            ++$done;
+        }
+
+        return $done;
+    }
+
+    public function runNow(int $limit): int
+    {
+        $done = 0;
+        foreach ($this->jobs->queued($limit) as $job) {
+            $job->setRunAt(new \DateTimeImmutable('-1 second'));
+            $this->em->flush();
             $this->execute($job);
             ++$done;
         }
@@ -119,7 +176,11 @@ final class ProfileJobRunner
         $started = microtime(true);
         $this->log($job, 'start', $started);
         $this->profiles->onAttempt(function (string $model, int $status, string $detail) use ($job, $started): void {
-            $this->log($job, $model.' '.$status.' '.$detail, $started);
+            $line = $model.' '.$status.' '.$detail;
+            $this->log($job, $line, $started);
+            if ($this->attemptListener !== null) {
+                ($this->attemptListener)($model, $status, $detail);
+            }
         });
 
         try {
@@ -216,9 +277,9 @@ final class ProfileJobRunner
             ProfileGenerationFailed::INVALID_MODEL,
         ], true);
         $retry = !$permanent && in_array($exception->status(), [429, 502, 503], true) && $job->getAttempts() < 6;
-        $job->setError($exception->getMessage());
+        $job->setError($exception->detail());
         if ($retry) {
-            $seconds = 15 * (2 ** max(0, $job->getAttempts() - 1));
+            $seconds = min(120, 15 * (2 ** max(0, $job->getAttempts() - 1)));
             $job->setStatus('queued');
             $job->setStage('queued');
             $job->setRunAt(new \DateTimeImmutable('+'.$seconds.' seconds'));
@@ -230,7 +291,7 @@ final class ProfileJobRunner
         $job->setStatus('failed');
         $job->setStage('failed');
         $this->markArtefact($job, 'failed');
-        $this->log($job, 'failed '.$exception->getMessage(), $started);
+        $this->log($job, 'failed '.$exception->detail(), $started);
     }
 
     public function queueFor(Artefact $artefact, bool $force): ?ProfileJob

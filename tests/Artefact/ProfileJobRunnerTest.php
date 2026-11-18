@@ -43,6 +43,7 @@ final class ProfileJobRunnerTest extends KernelTestCase
         self::assertSame('queued', $job->getStatus());
         self::assertSame(1, $job->getAttempts());
         self::assertGreaterThan(new \DateTimeImmutable('+10 seconds'), $job->getRunAt());
+        self::assertLessThan(new \DateTimeImmutable('+121 seconds'), $job->getRunAt());
         self::assertStringContainsString('429', (string) file_get_contents($this->log()));
 
         for ($attempt = 2; $attempt <= 5; ++$attempt) {
@@ -50,12 +51,14 @@ final class ProfileJobRunnerTest extends KernelTestCase
             $runner->execute($job);
             self::assertSame('queued', $job->getStatus(), 'attempt '.$attempt);
         }
+        self::assertLessThan(new \DateTimeImmutable('+121 seconds'), $job->getRunAt());
+        self::assertGreaterThan(new \DateTimeImmutable('+90 seconds'), $job->getRunAt());
         $job->setRunAt(new \DateTimeImmutable('-1 second'));
         $runner->execute($job);
 
         self::assertSame('failed', $job->getStatus());
         self::assertSame(6, $job->getAttempts());
-        self::assertSame(ProfileGenerationFailed::LIMITED, $job->getError());
+        self::assertSame('RESOURCE_EXHAUSTED high demand', $job->getError());
     }
 
     public function testTheCronCommandRunsAQueuedJob(): void
@@ -75,6 +78,58 @@ final class ProfileJobRunnerTest extends KernelTestCase
         self::assertStringContainsString('queued: 1', $tester->getDisplay());
         self::assertStringContainsString($job->getId(), $tester->getDisplay());
         self::assertStringContainsString('jobs: 1', $tester->getDisplay());
+    }
+
+    public function testAFutureJobIsSkippedUntilNow(): void
+    {
+        $this->useGenerator(new MockHttpClient(fn () => $this->profile()));
+        $job = $this->job();
+        $job->setRunAt(new \DateTimeImmutable('+1 hour'));
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->flush();
+        $runner = $this->runner();
+        $directory = dirname($runner->chainStampPath());
+        if (!is_dir($directory)) {
+            mkdir($directory, 0775, true);
+        }
+        file_put_contents($runner->chainStampPath(), $runner->chainStamp());
+
+        $command = static::getContainer()->get(\App\Command\OrigensAiJobsCommand::class);
+        self::assertInstanceOf(\App\Command\OrigensAiJobsCommand::class, $command);
+        $tester = new \Symfony\Component\Console\Tester\CommandTester($command);
+        self::assertSame(0, $tester->execute(['--limit' => '1', '--seconds' => '10']));
+        self::assertStringContainsString('skipped: due at '.$job->getRunAt()->format('Y-m-d H:i:s'), $tester->getDisplay());
+        $em->clear();
+        $again = $em->find(ProfileJob::class, $job->getId());
+        self::assertInstanceOf(ProfileJob::class, $again);
+        self::assertSame('queued', $again->getStatus());
+
+        self::assertSame(0, $tester->execute(['--now' => true, '--limit' => '1']));
+        self::assertStringContainsString('try gemini-3.8-flash 200', $tester->getDisplay());
+        $em->clear();
+        $done = $em->find(ProfileJob::class, $job->getId());
+        self::assertInstanceOf(ProfileJob::class, $done);
+        self::assertSame('done', $done->getStatus());
+    }
+
+    public function testJobOptionRunsThatJobNow(): void
+    {
+        $this->useGenerator(new MockHttpClient(fn () => $this->profile()));
+        $job = $this->job();
+        $job->setRunAt(new \DateTimeImmutable('+1 hour'));
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->flush();
+        $command = static::getContainer()->get(\App\Command\OrigensAiJobsCommand::class);
+        self::assertInstanceOf(\App\Command\OrigensAiJobsCommand::class, $command);
+        $tester = new \Symfony\Component\Console\Tester\CommandTester($command);
+        self::assertSame(0, $tester->execute(['--job' => $job->getId()]));
+        self::assertStringContainsString('outcome=done', $tester->getDisplay());
+        $em->clear();
+        $done = $em->find(ProfileJob::class, $job->getId());
+        self::assertInstanceOf(ProfileJob::class, $done);
+        self::assertSame('done', $done->getStatus());
     }
 
     public function testListPrintsTheJobAndDoesNotRunIt(): void
