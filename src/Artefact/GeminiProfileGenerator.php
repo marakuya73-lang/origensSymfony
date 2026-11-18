@@ -12,9 +12,17 @@ final class GeminiProfileGenerator
 {
     private const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 
+    private const MODELS = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=100';
+
     private const DEFAULT_MODEL = 'gemini-3.8-flash';
 
-    private const DEFAULT_FALLBACK = 'gemini-2.5-flash,gemini-2.5-flash-lite,gemini-2.0-flash';
+    /** @var list<string> */
+    private const RETIRED = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash'];
+
+    /** @var array<string, true> */
+    private array $deadModels = [];
+
+    private bool $deadLoaded = false;
 
     public function __construct(
         private HttpClientInterface $httpClient,
@@ -23,7 +31,9 @@ final class GeminiProfileGenerator
         #[Autowire(env: 'GEMINI_MODEL')]
         private string $model,
         #[Autowire(env: 'GEMINI_FALLBACK_MODEL')]
-        private string $fallbackModel = self::DEFAULT_FALLBACK,
+        private string $fallbackModel = '',
+        #[Autowire('%artefact_upload_dir%')]
+        private string $uploads = '',
         private ?SymbolicTradition $tradition = null,
     ) {
     }
@@ -64,7 +74,7 @@ final class GeminiProfileGenerator
             throw new ProfileGenerationFailed(ProfileGenerationFailed::UNUSABLE, 422);
         }
 
-        $models = $this->modelChain();
+        $models = $this->modelChain($apiKey);
 
         $notes = trim($notes);
         if (mb_strlen($notes) > 4000) {
@@ -79,23 +89,33 @@ final class GeminiProfileGenerator
             $input[] = ['type' => 'audio', 'data' => base64_encode($audio), 'mime_type' => $audioMime];
         }
 
-        $last = null;
+        $overload = null;
         foreach ($models as $model) {
+            if ($this->isDead($model)) {
+                $this->note($model, 404, 'skipped, retired earlier today');
+
+                continue;
+            }
             try {
                 return $this->pipeline($apiKey, $model, $input);
             } catch (ProfileGenerationFailed $exception) {
-                $last = $exception;
+                if ($exception->status() === 404) {
+                    $this->rememberDead($model);
+
+                    continue;
+                }
                 if (!$this->retryable($exception)) {
                     throw $exception;
                 }
+                $overload = $exception;
             }
         }
 
-        if (!$last instanceof ProfileGenerationFailed) {
-            throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 503);
+        if ($overload instanceof ProfileGenerationFailed) {
+            throw $overload;
         }
 
-        throw $last;
+        throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 503, 'no live model');
     }
 
     /** @param list<array<string, mixed>> $input */
@@ -160,14 +180,18 @@ final class GeminiProfileGenerator
         $payload = json_decode($body, true);
         $detail = $this->errorDetail($payload);
         $this->note($model, $status, $detail !== '' ? $detail : ($status === 200 ? 'ok' : 'http '.$status));
+        if ($this->retired($status, $detail)) {
+            $this->rememberDead($model);
+            throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 404, $detail !== '' ? $detail : 'NOT_FOUND');
+        }
         if ($this->overloaded($status, $payload)) {
             throw $this->overloadFailure($status, $payload);
         }
         if (in_array($status, [401, 403], true) || (is_array($payload) && in_array($payload['error']['status'] ?? '', ['UNAUTHENTICATED', 'PERMISSION_DENIED'], true))) {
-            throw new ProfileGenerationFailed(ProfileGenerationFailed::REJECTED_KEY, 502);
+            throw new ProfileGenerationFailed(ProfileGenerationFailed::REJECTED_KEY, 502, $detail);
         }
         if ($status !== 200 || !is_array($payload)) {
-            throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 502);
+            throw new ProfileGenerationFailed(ProfileGenerationFailed::UNAVAILABLE, 502, $detail !== '' ? $detail : 'http '.$status);
         }
 
         $interaction = $payload['status'] ?? null;
@@ -403,7 +427,17 @@ final class GeminiProfileGenerator
 
     private function retryable(ProfileGenerationFailed $exception): bool
     {
-        return in_array($exception->status(), [429, 503], true);
+        return in_array($exception->status(), [404, 429, 503], true);
+    }
+
+    private function retired(int $status, string $detail): bool
+    {
+        $haystack = strtolower($detail);
+
+        return $status === 404
+            || str_contains($haystack, 'not_found')
+            || str_contains($haystack, 'no longer available')
+            || str_contains($haystack, 'not found');
     }
 
     private function overloaded(int $status, mixed $payload): bool
@@ -426,25 +460,191 @@ final class GeminiProfileGenerator
     }
 
     /** @return list<string> */
-    private function modelChain(): array
+    private function modelChain(string $apiKey): array
     {
         $primary = $this->modelName($this->model, self::DEFAULT_MODEL);
-        $chain = [$primary];
-        $configured = trim($this->fallbackModel);
-        if ($configured === '') {
-            $configured = self::DEFAULT_FALLBACK;
+        $chain = [];
+        foreach ([$primary, ...$this->fallbackNames($apiKey)] as $model) {
+            if ($model === '' || $this->isDead($model) || in_array($model, $chain, true)) {
+                continue;
+            }
+            $chain[] = $model;
         }
-        foreach (preg_split('/\s*,\s*/', $configured) ?: [] as $name) {
+
+        return $chain !== [] ? $chain : [$primary];
+    }
+
+    /** @return list<string> */
+    private function fallbackNames(string $apiKey): array
+    {
+        $configured = [];
+        foreach (preg_split('/\s*,\s*/', trim($this->fallbackModel)) ?: [] as $name) {
             if (!is_string($name) || trim($name) === '') {
                 continue;
             }
             $model = $this->modelName($name, $name);
-            if (!in_array($model, $chain, true)) {
-                $chain[] = $model;
+            if (!in_array($model, self::RETIRED, true)) {
+                $configured[] = $model;
+            }
+        }
+        if ($configured !== []) {
+            return $configured;
+        }
+
+        return $this->discoveredFlash($apiKey);
+    }
+
+    /** @return list<string> */
+    private function discoveredFlash(string $apiKey): array
+    {
+        $cache = $this->loadCache();
+        $cached = $this->stringList($cache['models'] ?? []);
+        if ($cached !== [] && ($cache['day'] ?? '') === gmdate('Y-m-d')) {
+            return $cached;
+        }
+
+        try {
+            $response = $this->httpClient->request('GET', self::MODELS, [
+                'headers' => ['x-goog-api-key' => $apiKey, 'Accept' => 'application/json'],
+                'timeout' => 5,
+                'max_duration' => 5,
+            ]);
+            $status = $response->getStatusCode();
+            $payload = json_decode($response->getContent(false), true);
+        } catch (TransportExceptionInterface) {
+            return $cached;
+        }
+        if ($status !== 200 || !is_array($payload)) {
+            return $cached;
+        }
+
+        $models = [];
+        foreach (is_array($payload['models'] ?? null) ? $payload['models'] : [] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $methods = $row['supportedGenerationMethods'] ?? [];
+            $name = $this->bareModel((string) ($row['name'] ?? ''));
+            if ($name === '' || !is_array($methods) || !in_array('generateContent', $methods, true)) {
+                continue;
+            }
+            if (!str_contains(strtolower($name), 'flash') || in_array($name, self::RETIRED, true)) {
+                continue;
+            }
+            $models[] = $name;
+        }
+        usort($models, static function (string $left, string $right): int {
+            $lite = str_contains($left, 'lite') <=> str_contains($right, 'lite');
+
+            return $lite !== 0 ? -$lite : strcmp($left, $right);
+        });
+        $cache['day'] = gmdate('Y-m-d');
+        $cache['models'] = $models;
+        $this->writeCache($cache);
+
+        return $models;
+    }
+
+    private function bareModel(string $name): string
+    {
+        $name = trim($name);
+        if (str_starts_with($name, 'models/')) {
+            $name = substr($name, strlen('models/'));
+        }
+        if ($name === '' || 1 !== preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/', $name)) {
+            return '';
+        }
+
+        return $name;
+    }
+
+    private function isDead(string $model): bool
+    {
+        $this->loadDead();
+
+        return isset($this->deadModels[$model]);
+    }
+
+    private function rememberDead(string $model): void
+    {
+        $this->loadDead();
+        if (isset($this->deadModels[$model])) {
+            return;
+        }
+        $this->deadModels[$model] = true;
+        $cache = $this->loadCache();
+        $dead = $this->stringList($cache['dead'] ?? []);
+        $dead[] = $model;
+        $cache['day'] = gmdate('Y-m-d');
+        $cache['dead'] = array_values(array_unique($dead));
+        $this->writeCache($cache);
+    }
+
+    private function loadDead(): void
+    {
+        if ($this->deadLoaded) {
+            return;
+        }
+        $this->deadLoaded = true;
+        foreach ($this->stringList($this->loadCache()['dead'] ?? []) as $name) {
+            $this->deadModels[$name] = true;
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function loadCache(): array
+    {
+        $path = $this->cachePath();
+        if ($path === null || !is_file($path)) {
+            return ['day' => gmdate('Y-m-d'), 'models' => [], 'dead' => []];
+        }
+        $decoded = json_decode((string) file_get_contents($path), true);
+        if (!is_array($decoded) || ($decoded['day'] ?? '') !== gmdate('Y-m-d')) {
+            return ['day' => gmdate('Y-m-d'), 'models' => [], 'dead' => []];
+        }
+
+        return $decoded;
+    }
+
+    /** @param array<string, mixed> $cache */
+    private function writeCache(array $cache): void
+    {
+        $path = $this->cachePath();
+        if ($path === null) {
+            return;
+        }
+        $directory = dirname($path);
+        if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
+            return;
+        }
+        file_put_contents($path, json_encode($cache, JSON_THROW_ON_ERROR));
+    }
+
+    private function cachePath(): ?string
+    {
+        if ($this->uploads === '') {
+            return null;
+        }
+        $parent = dirname($this->uploads);
+        $root = basename($parent) === 'uploads' ? dirname($parent) : $parent;
+
+        return $root.'/gemini-models.json';
+    }
+
+    /** @return list<string> */
+    private function stringList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $names = [];
+        foreach ($value as $item) {
+            if (is_string($item) && $item !== '') {
+                $names[] = $item;
             }
         }
 
-        return $chain;
+        return $names;
     }
 
     private function note(string $model, int $status, string $detail): void

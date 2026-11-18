@@ -290,7 +290,7 @@ final class ProfileJobRunnerTest extends KernelTestCase
 
     private function useGenerator(MockHttpClient $client): void
     {
-        static::getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator($client, 'test-key', 'gemini-3.8-flash'));
+        static::getContainer()->set(GeminiProfileGenerator::class, new GeminiProfileGenerator($client, 'test-key', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'));
     }
 
     private function profile(): MockResponse
