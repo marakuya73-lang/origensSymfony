@@ -268,6 +268,8 @@ class Artefact
     public function apply(ArtefactData $data): void
     {
         $this->title = $data->title;
+        $this->size = $data->size;
+        $this->category = $data->category;
         $this->description = $data->description;
         $this->symbolism = $data->symbolism;
         $this->dimensions = $data->dimensions;

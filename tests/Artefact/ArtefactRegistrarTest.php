@@ -52,8 +52,8 @@ final class ArtefactRegistrarTest extends KernelTestCase
 
         self::assertInstanceOf(Artefact::class, $updated);
         self::assertSame('Primeira revista', $updated->getTitle());
-        self::assertSame('M', $updated->getSize());
-        self::assertSame(1, $updated->getCategory());
+        self::assertSame('P', $updated->getSize());
+        self::assertSame(2, $updated->getCategory());
         self::assertSame($code, $updated->getCode());
         self::assertSame($token, $updated->getPublicToken());
         self::assertEquals($createdAt, $updated->getCreatedAt());
