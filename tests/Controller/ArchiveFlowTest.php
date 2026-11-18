@@ -14,6 +14,31 @@ use Symfony\Component\Security\Core\User\InMemoryUser;
 
 final class ArchiveFlowTest extends WebTestCase
 {
+    public function testBackupDownloadIsReservedForTheOwner(): void
+    {
+        $client = $this->browser();
+        $client->request('GET', '/admin/records/backup');
+        self::assertResponseRedirects('/');
+    }
+
+    public function testTheOwnerCanDownloadABackupAndSeeWhenItWasTaken(): void
+    {
+        $marker = dirname(__DIR__, 2).'/var/last-download.txt';
+        if (is_file($marker)) {
+            unlink($marker);
+        }
+        $owner = $this->ownerClient();
+        $owner->request('GET', '/admin/records');
+        self::assertSelectorTextContains('.backup-status', 'Último backup baixado: nenhum');
+        $owner->request('GET', '/admin/records/backup');
+        self::assertResponseIsSuccessful();
+        $disposition = (string) $owner->getResponse()->headers->get('content-disposition');
+        self::assertMatchesRegularExpression('/origens-backup-\d{8}-\d{4}\.zip/', $disposition);
+        $owner->request('GET', '/admin/records');
+        self::assertSelectorTextContains('.backup-status', 'Último backup baixado:');
+        self::assertStringNotContainsString('Último backup baixado: nenhum', (string) $owner->getResponse()->getContent());
+    }
+
     public function testHomeIsTheOwnerLogin(): void
     {
         $client = $this->browser();

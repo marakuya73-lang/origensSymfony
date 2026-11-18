@@ -80,6 +80,8 @@ Um backup diário, além do que o deploy já faz:
 
 O link público `/p/<token>` nasce uma vez, na criação, com 32 caracteres aleatórios guardados na peça. Editar, gerar de novo com a IA ou fazer deploy não troca esse token, e ele não volta a ser usado.
 
+Quando um lote de peças estiver pronto, use **Baixar backup** no arquivo reservado. O ZIP `origens-backup-AAAAMMDD-HHMM.zip` traz o banco SQLite (cópia consistente), as fotos e a planilha CSV/XLSX com preço, simbologia, materiais e o link público, mais um `README.txt`. A lista mostra **Último backup baixado** e avisa se alguma peça foi gravada depois. No servidor, `bin/console origens:snapshot` grava o mesmo ZIP em `origens-data/snapshots` e não apaga as cópias antigas. Para voltar: `bin/console origens:restore CAMINHO.zip --force` (sem `--force` ele recusa, e antes copia o banco atual).
+
 Se a gravação não for confirmada numa leitura nova do banco, o formulário mostra erro e não diz que salvou.
 
 Os logs de produção vão para a saída de erro do PHP (`php://stderr`), não para `var/log/prod.log`.
