@@ -87,17 +87,50 @@ export default class extends Controller {
 
     applyProfile(profile) {
         this.reviewing = true;
-        this.write('title', profile.title);
-        this.write('description', profile.description);
-        this.write('symbolism', profile.symbolism);
-        this.write('dimensions', profile.dimensions);
-        this.write('handmade', profile.handmade);
-        this.write('care', Array.isArray(profile.care) ? profile.care.filter((line) => typeof line === 'string').join('\n') : '');
-        this.replaceMaterials(Array.isArray(profile.materials) ? profile.materials : []);
-        this.applySize(profile.size);
+        this.fillEmpty('title', profile.title);
+        this.fillEmpty('description', profile.description);
+        this.fillEmpty('symbolism', profile.symbolism);
+        this.fillEmpty('dimensions', profile.dimensions);
+        this.fillEmpty('handmade', profile.handmade);
+        const care = this.element.querySelector('[name="care"]');
+        if (care instanceof HTMLTextAreaElement && care.value.trim() === '' && Array.isArray(profile.care)) {
+            care.value = profile.care.filter((line) => typeof line === 'string' && line.trim() !== '').join('\n');
+        }
+        this.fillEmptyMaterialNotes(Array.isArray(profile.materials) ? profile.materials : []);
         if (this.hasErrorTarget) {
             this.errorTarget.hidden = true;
         }
+    }
+
+    fillEmpty(name, value) {
+        const field = this.element.querySelector(`[name="${name}"]`);
+        if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) {
+            return;
+        }
+        if (field.value.trim() !== '' || typeof value !== 'string' || value.trim() === '') {
+            return;
+        }
+        field.value = value;
+    }
+
+    fillEmptyMaterialNotes(materials) {
+        const rows = this.materialRows();
+        const named = rows.some((row) => (row.querySelector('[data-name]')?.value || '').trim() !== '');
+        if (!named) {
+            this.replaceMaterials(materials);
+            return;
+        }
+        rows.forEach((row) => {
+            const name = (row.querySelector('[data-name]')?.value || '').trim().toLowerCase();
+            const note = row.querySelector('[data-note]');
+            if (!name || !(note instanceof HTMLTextAreaElement) || note.value.trim() !== '') {
+                return;
+            }
+            const match = materials.find((item) => item && typeof item.name === 'string' && item.name.trim().toLowerCase() === name && typeof item.note === 'string' && item.note.trim() !== '');
+            if (match) {
+                note.value = match.note;
+            }
+        });
     }
 
     write(name, value) {
@@ -359,9 +392,11 @@ export default class extends Controller {
 
         this.errorTarget.hidden = true;
         this.setStatus('Salvando…');
+        const body = new FormData(this.element);
+        body.delete('generate');
         const response = await fetch(this.element.action, {
             method: 'POST',
-            body: new FormData(this.element),
+            body,
             credentials: 'same-origin',
             headers: { Accept: 'application/json', 'X-Origens-Autosave': '1' },
         });
@@ -378,6 +413,7 @@ export default class extends Controller {
 
         this.savedSnapshot = this.snapshot();
         this.remember(payload);
+        this.element.dispatchEvent(new CustomEvent('origens:saved', { detail: payload }));
         this.setStatus('Salvo');
     }
 
@@ -387,9 +423,6 @@ export default class extends Controller {
         }
         this.persistedValue = true;
         this.element.action = payload.editUrl;
-        this.element.querySelectorAll('[data-identity]').forEach((field) => {
-            field.disabled = true;
-        });
         const title = this.element.querySelector('.editor-title');
         if (title) {
             title.textContent = 'Editar artefacto';

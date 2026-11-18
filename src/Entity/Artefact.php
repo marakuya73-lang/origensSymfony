@@ -76,6 +76,9 @@ class Artefact
     #[ORM\Column(length: 80, nullable: true)]
     private ?string $audioMime = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?int $audioDurationMs = null;
+
     #[ORM\Column(length: 16, options: ['default' => ''])]
     private string $aiStatus = '';
 
@@ -233,6 +236,16 @@ class Artefact
         $this->audioMime = $audioMime;
     }
 
+    public function getAudioDurationMs(): ?int
+    {
+        return $this->audioDurationMs;
+    }
+
+    public function setAudioDurationMs(?int $audioDurationMs): void
+    {
+        $this->audioDurationMs = $audioDurationMs;
+    }
+
     public function getAiStatus(): string
     {
         return $this->aiStatus;
@@ -268,6 +281,8 @@ class Artefact
     public function apply(ArtefactData $data): void
     {
         $this->title = $data->title;
+        $this->size = $data->size;
+        $this->category = $data->category;
         $this->description = $data->description;
         $this->symbolism = $data->symbolism;
         $this->dimensions = $data->dimensions;
@@ -300,22 +315,65 @@ class Artefact
 
     public function fillFromProfile(\App\Artefact\GeneratedProfile $profile): void
     {
-        if ($this->title === '' || !$this->isManual('title')) {
+        if (trim($this->title) === '' && trim($profile->title) !== '') {
             $this->title = $profile->title;
-            $this->unlock('title');
         }
-        if ($this->description === '' || !$this->isManual('description')) {
+        if (trim($this->description) === '' && trim($profile->description) !== '') {
             $this->description = $profile->description;
-            $this->unlock('description');
         }
-        if ($this->symbolism === '' || !$this->isManual('symbolism')) {
+        if (trim($this->symbolism) === '' && trim($profile->symbolism) !== '') {
             $this->symbolism = $profile->symbolism;
-            $this->unlock('symbolism');
         }
-        if (($this->materials === [] || !$this->isManual('materials')) && $profile->materials !== []) {
-            $this->materials = $profile->materials;
-            $this->unlock('materials');
+        if (trim($this->dimensions) === '' && trim($profile->dimensions) !== '') {
+            $this->dimensions = $profile->dimensions;
         }
+        if (trim($this->handmade) === '' && trim($profile->handmade) !== '') {
+            $this->handmade = $profile->handmade;
+        }
+        if ($this->care === [] && $profile->care !== []) {
+            $this->care = $profile->care;
+        }
+        $this->materials = $this->materialsAfterProfile($profile->materials);
+    }
+
+    /**
+     * @param list<array{name: string, note: string}> $suggested
+     *
+     * @return list<array{name: string, note: string}>
+     */
+    private function materialsAfterProfile(array $suggested): array
+    {
+        $hers = [];
+        foreach ($this->materials as $row) {
+            $name = trim((string) ($row['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $hers[] = ['name' => $name, 'note' => trim((string) ($row['note'] ?? ''))];
+        }
+        if ($hers === []) {
+            return $suggested !== [] ? $suggested : $this->materials;
+        }
+
+        $notes = [];
+        foreach ($suggested as $row) {
+            $name = mb_strtolower(trim($row['name']));
+            $note = trim($row['note']);
+            if ($name !== '' && $note !== '' && !isset($notes[$name])) {
+                $notes[$name] = $note;
+            }
+        }
+        foreach ($hers as $index => $row) {
+            if ($row['note'] !== '') {
+                continue;
+            }
+            $key = mb_strtolower($row['name']);
+            if (isset($notes[$key])) {
+                $hers[$index]['note'] = $notes[$key];
+            }
+        }
+
+        return $hers;
     }
 
     /** @param list<string> $touched */

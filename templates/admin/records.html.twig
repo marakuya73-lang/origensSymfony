@@ -81,7 +81,7 @@
                             <span></span>
                         {% endif %}
                         <div class="row-main">
-                            <p class="code">{{ row.code }}</p>
+                            <p class="code">{{ row.code }}{% if row.hasAudio %} <span class="audio-badge" title="Tem áudio">{{ icons.svg('mic') }}<span class="sr-only">Tem áudio</span></span>{% endif %}</p>
                             <p class="row-title-mobile">{{ row.title }}</p>
                             <p class="quiet row-date-mobile">{{ row.createdOn }}</p>
                             {% if row.price %}

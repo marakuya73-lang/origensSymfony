@@ -101,8 +101,8 @@ final class ArtefactDraft
 
         return new self(
             title: $title,
-            size: $current?->getSize() ?? $size,
-            category: $current?->getCategory() ?? $category,
+            size: $size,
+            category: $category,
             description: $description,
             dimensions: $dimensions,
             recordDate: $recordDate !== '' ? $recordDate : ArtefactRules::localToday(),
