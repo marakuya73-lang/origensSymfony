@@ -96,6 +96,9 @@ class Artefact
 
     public function setPublicToken(string $publicToken): void
     {
+        if ($this->publicToken !== '' && $this->publicToken !== $publicToken) {
+            throw new \LogicException('A public link is stored once and cannot be replaced.');
+        }
         $this->publicToken = $publicToken;
     }
 

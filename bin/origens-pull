@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Deploy ORIGENS without touching the database or the photos.
+# The database and uploads live OUTSIDE this repository, so git pull
+# and a fresh clone cannot delete them. A timestamped backup is taken
+# before git pull. If that backup fails, the script stops.
+#
+# Disable Hostinger's automatic Git deploy. Publish only with this script:
+#   PHP_BIN=/opt/alt/php84/usr/bin/php ./bin/origens-pull
+#
+# Optional:
+#   ORIGENS_DATA_ROOT=/home/USER/domains/origens.art.br/origens-data
+
+set -euo pipefail
+# shellcheck disable=SC1091
+source "$(dirname "$0")/origens-lib.sh"
+
+ensure_env() {
+    local file=$PROJECT/.env.local
+    local db_url upload
+    touch "$file"
+    db_url="sqlite:////${DATA_ROOT#/}/origens.sqlite"
+    upload="$DATA_ROOT/uploads/artefacts"
+    if ! grep -q '^DATABASE_URL=' "$file"; then
+        printf '\nDATABASE_URL="%s"\n' "$db_url" >> "$file"
+    fi
+    if ! grep -q '^ARTEFACT_UPLOAD_DIR=' "$file"; then
+        printf 'ARTEFACT_UPLOAD_DIR="%s"\n' "$upload" >> "$file"
+    fi
+    # A compiled env file would keep the old database path.
+    rm -f "$PROJECT/.env.local.php"
+}
+
+place_database() {
+    local target=$DATA_ROOT/origens.sqlite
+    if [ -f "$target" ]; then
+        return 0
+    fi
+    local newest
+    newest=$(ls -1t "$DATA_ROOT/backups"/origens-*.sqlite 2>/dev/null | head -1 || true)
+    if [ -n "$newest" ]; then
+        cp -a "$newest" "$target"
+        echo "origens-pull: installed database from $newest"
+        return 0
+    fi
+    if [ -f "$PROJECT/var/data_prod.db" ]; then
+        cp -a "$PROJECT/var/data_prod.db" "$target"
+        echo "origens-pull: copied var/data_prod.db to $target"
+    fi
+}
+
+link_uploads() {
+    local link=$PROJECT/public/uploads
+    local target=$DATA_ROOT/uploads
+    if [ -d "$link" ] && [ ! -L "$link" ]; then
+        cp -a "$link"/. "$target"/
+        rm -rf "$link"
+    fi
+    ln -sfn "$target" "$link"
+}
+
+"$PROJECT/bin/origens-backup" || {
+    LIVE=$(current_db)
+    if [ -f "$LIVE" ]; then
+        exit 1
+    fi
+    echo "origens-pull: no database yet; continuing with an empty archive."
+}
+
+git -C "$PROJECT" pull --ff-only
+
+ensure_env
+place_database
+link_uploads
+
+"$PHP_BIN" "$(command -v composer)" install --no-dev --no-interaction --no-scripts --working-dir="$PROJECT"
+"$PHP_BIN" "$PROJECT/bin/console" doctrine:migrations:migrate --no-interaction --env=prod
+"$PHP_BIN" "$PROJECT/bin/console" asset-map:compile --env=prod
+"$PHP_BIN" "$PROJECT/bin/console" cache:clear --env=prod
+"$PHP_BIN" "$PROJECT/bin/console" origens:check --env=prod
+
+echo "origens-pull: database $(current_db)"
+echo "origens-pull: uploads $DATA_ROOT/uploads"
