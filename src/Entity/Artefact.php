@@ -7,6 +7,7 @@ namespace App\Entity;
 use App\Artefact\ArtefactData;
 use App\Artefact\ArtefactRules;
 use App\Artefact\Identifier;
+use App\Artefact\ProfileTurn;
 use App\Repository\ArtefactRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -146,6 +147,18 @@ class Artefact
         return $this->title;
     }
 
+    public function setTitle(string $title): void
+    {
+        $this->title = $title;
+    }
+
+    public function markManual(string $field): void
+    {
+        if (in_array($field, ProfileTurn::FIELDS, true)) {
+            $this->lock($field);
+        }
+    }
+
     public function getDescription(): string
     {
         return $this->description;
@@ -197,6 +210,11 @@ class Artefact
     public function getSalePriceCents(): ?int
     {
         return $this->salePriceCents;
+    }
+
+    public function setSalePriceCents(?int $salePriceCents): void
+    {
+        $this->salePriceCents = $salePriceCents;
     }
 
     public function createdOn(): string
@@ -315,7 +333,7 @@ class Artefact
 
     public function fillFromProfile(\App\Artefact\GeneratedProfile $profile): void
     {
-        if (trim($this->title) === '' && trim($profile->title) !== '') {
+        if (!$this->isManual('title') && trim($this->title) === '' && trim($profile->title) !== '') {
             $this->title = $profile->title;
         }
         if (trim($this->description) === '' && trim($profile->description) !== '') {
