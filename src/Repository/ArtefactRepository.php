@@ -23,7 +23,7 @@ class ArtefactRepository extends ServiceEntityRepository
     {
         /** @var list<Artefact> $rows */
         $rows = $this->createQueryBuilder('a')
-            ->orderBy('a.createdAt', 'DESC')
+            ->orderBy('a.createdAt', \SortDirection::Descending)
             ->getQuery()
             ->getResult();
 
@@ -36,7 +36,7 @@ class ArtefactRepository extends ServiceEntityRepository
         /** @var list<mixed> $titles */
         $titles = $this->createQueryBuilder('a')
             ->select('a.title')
-            ->orderBy('a.createdAt', 'DESC')
+            ->orderBy('a.createdAt', \SortDirection::Descending)
             ->setMaxResults(max(1, min($limit, 30)))
             ->getQuery()
             ->getSingleColumnResult();

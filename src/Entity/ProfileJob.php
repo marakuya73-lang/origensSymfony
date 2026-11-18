@@ -221,4 +221,9 @@ class ProfileJob
     {
         return $this->updatedAt;
     }
+
+    public function getCreatedAt(): \DateTimeImmutable
+    {
+        return $this->createdAt;
+    }
 }

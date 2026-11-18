@@ -26,6 +26,7 @@ use App\Repository\ArtefactRepository;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Symfony\Component\HttpFoundation\Exception\BadRequestException;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -118,12 +119,16 @@ final class AdminController extends AbstractController
     }
 
     #[Route('/admin/records/profile/{id}', name: 'admin_artefact_profile_status', methods: ['GET'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
-    public function profileStatus(string $id): JsonResponse
+    public function profileStatus(string $id): Response
     {
+        $this->jobRunner->releaseStale();
         $job = $this->jobs->find($id);
         if (!$job instanceof ProfileJob) {
             return $this->json(['ok' => false, 'error' => 'Não foi possível encontrar essa geração.'], Response::HTTP_NOT_FOUND);
         }
+        $kick = $job->getStatus() === 'queued'
+            && $job->getRunAt() <= new \DateTimeImmutable()
+            && $job->getCreatedAt() <= new \DateTimeImmutable('-5 seconds');
         $message = match ($job->getStage()) {
             'listening' => 'Ouvindo o áudio…',
             'looking' => 'Olhando a peça…',
@@ -151,7 +156,19 @@ final class AdminController extends AbstractController
             }
         }
 
-        return $this->json($payload);
+        if (!$kick) {
+            return $this->json($payload);
+        }
+
+        $encoded = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+
+        return new StreamedResponse(function () use ($encoded, $id): void {
+            echo $encoded;
+            $this->jobRunner->detachWebRequest();
+            ignore_user_abort(true);
+            set_time_limit(0);
+            $this->jobRunner->executeId($id);
+        }, Response::HTTP_OK, ['Content-Type' => 'application/json']);
     }
 
     #[Route('/admin/records/backup', name: 'admin_artefact_backup', methods: ['GET'])]

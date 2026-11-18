@@ -23,7 +23,8 @@ final class ProfileJobListener
             return;
         }
         ignore_user_abort(true);
-        set_time_limit(180);
+        set_time_limit(0);
+        $this->runner->detachWebRequest();
         $this->runner->executeId($id);
     }
 }

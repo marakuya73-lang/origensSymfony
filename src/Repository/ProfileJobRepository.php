@@ -25,11 +25,50 @@ class ProfileJobRepository extends ServiceEntityRepository
             ->andWhere('j.runAt <= :now')
             ->setParameter('status', 'queued')
             ->setParameter('now', $now)
-            ->orderBy('j.createdAt', 'ASC')
+            ->orderBy('j.createdAt', \SortDirection::Ascending)
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
 
         return $job instanceof ProfileJob ? $job : null;
+    }
+
+    /** @return list<ProfileJob> */
+    public function recent(int $limit = 20): array
+    {
+        /** @var list<ProfileJob> $jobs */
+        $jobs = $this->createQueryBuilder('j')
+            ->orderBy('j.createdAt', \SortDirection::Descending)
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+
+        return $jobs;
+    }
+
+    public function releaseStale(\DateTimeImmutable $before): int
+    {
+        return (int) $this->createQueryBuilder('j')
+            ->update()
+            ->set('j.status', ':queued')
+            ->set('j.stage', ':stage')
+            ->where('j.status = :running')
+            ->andWhere('j.updatedAt < :before')
+            ->setParameter('queued', 'queued')
+            ->setParameter('stage', 'queued')
+            ->setParameter('running', 'running')
+            ->setParameter('before', $before)
+            ->getQuery()
+            ->execute();
+    }
+
+    public function countStatus(string $status): int
+    {
+        return (int) $this->createQueryBuilder('j')
+            ->select('COUNT(j.id)')
+            ->andWhere('j.status = :status')
+            ->setParameter('status', $status)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 }

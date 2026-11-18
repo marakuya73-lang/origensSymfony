@@ -25,15 +25,53 @@ final class ProfileJobRunner
 
     public function executeId(string $id): void
     {
+        $this->releaseStale();
         $job = $this->jobs->find($id);
         if (!$job instanceof ProfileJob || $job->getStatus() !== 'queued' || $job->getRunAt() > new \DateTimeImmutable()) {
+            $this->logLine($id.' skip status='.($job instanceof ProfileJob ? $job->getStatus() : 'missing'));
+
             return;
         }
         $this->execute($job);
     }
 
+    public function kick(string $id): bool
+    {
+        $this->releaseStale();
+        $job = $this->jobs->find($id);
+        if (!$job instanceof ProfileJob || $job->getStatus() !== 'queued' || $job->getRunAt() > new \DateTimeImmutable()) {
+            return false;
+        }
+        if ($job->getCreatedAt() > new \DateTimeImmutable('-5 seconds')) {
+            return false;
+        }
+        $this->logLine($id.' kick');
+        $this->execute($job);
+
+        return true;
+    }
+
+    public function releaseStale(): int
+    {
+        return $this->jobs->releaseStale(new \DateTimeImmutable('-2 minutes'));
+    }
+
+    public function detachWebRequest(): void
+    {
+        if (function_exists('litespeed_finish_request')) {
+            litespeed_finish_request();
+
+            return;
+        }
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        }
+    }
+
     public function runDue(int $limit, int $seconds): int
     {
+        $this->releaseStale();
+        $this->logLine('command queued='.$this->jobs->countStatus('queued').' running='.$this->jobs->countStatus('running'));
         $deadline = time() + max(1, $seconds);
         $done = 0;
         while ($done < $limit && time() < $deadline) {
@@ -50,13 +88,29 @@ final class ProfileJobRunner
 
     public function execute(ProfileJob $job): void
     {
-        $job->setStatus('running');
+        $claimed = $this->em->getConnection()->executeStatement(
+            'UPDATE profile_jobs SET status = :running, updated_at = :now WHERE id = :id AND status = :queued',
+            [
+                'running' => 'running',
+                'queued' => 'queued',
+                'now' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                'id' => $job->getId(),
+            ],
+        );
+        if ($claimed !== 1) {
+            $this->logLine($job->getId().' skip claim');
+
+            return;
+        }
+        $this->em->refresh($job);
         $job->setAttempts($job->getAttempts() + 1);
         $job->setStage($job->getAudioPath() !== null ? 'listening' : 'looking');
         $this->em->flush();
         $started = microtime(true);
+        $this->log($job, 'start', $started);
 
         try {
+            $this->log($job, 'gemini', $started);
             $jpeg = $this->images->geminiJpeg($job->getImagePath());
             $job->setStage('writing');
             $this->em->flush();
@@ -163,21 +217,31 @@ final class ProfileJobRunner
         return is_string($bytes) && $bytes !== '' ? [$bytes, $mime] : null;
     }
 
-    private function log(ProfileJob $job, string $message, float $started): void
+    public function logPath(): string
     {
         $parent = dirname($this->uploads);
-        $directory = basename($parent) === 'uploads' ? dirname($parent).'/logs' : $parent.'/logs';
+
+        return (basename($parent) === 'uploads' ? dirname($parent) : $parent).'/logs/ai.log';
+    }
+
+    public function logLine(string $message): void
+    {
+        $path = $this->logPath();
+        $directory = dirname($path);
         if (!is_dir($directory) && !mkdir($directory, 0775, true) && !is_dir($directory)) {
             return;
         }
-        $line = sprintf(
-            "%s %s %s %.2fs %s\n",
-            (new \DateTimeImmutable())->format('c'),
+        file_put_contents($path, (new \DateTimeImmutable())->format('c').' '.$message."\n", FILE_APPEND);
+    }
+
+    private function log(ProfileJob $job, string $message, float $started): void
+    {
+        $this->logLine(sprintf(
+            '%s %s %.2fs %s',
             $job->getId(),
             $job->getStatus(),
             microtime(true) - $started,
             str_replace(["\n", "\r"], ' ', $message),
-        );
-        file_put_contents($directory.'/ai.log', $line, FILE_APPEND);
+        ));
     }
 }
