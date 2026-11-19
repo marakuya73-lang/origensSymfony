@@ -151,7 +151,7 @@ final class SellerTable
             $photo = $this->thumbnailDataUri($artefact);
             $image = $photo !== null ? '<img class="thumb" src="'.$photo.'" alt="">' : '';
             $rows .= '<tr>'
-                .'<td class="photo">'.$image.'</td>'
+                .'<td class="photo">'.$image.'<p class="ref">'.$this->h($this->reference($artefact)).'</p></td>'
                 .'<td class="name">'.$this->h($this->pieceName($artefact)).'</td>'
                 .'<td>'.$this->h($this->categoryLabel($artefact)).'</td>'
                 .'<td class="center">'.$this->h($artefact->getSize()).'</td>'
@@ -175,7 +175,8 @@ final class SellerTable
             .'th { padding: 8px 10px 10px; border-bottom: 1px solid #c9bfae; font-size: 8px; letter-spacing: 0.16em; text-transform: uppercase; text-align: left; font-weight: normal; color: #6d6456; }'
             .'td { padding: 12px 10px; border-bottom: 1px solid #e6dfd2; vertical-align: middle; }'
             .'.thumb { width: 64px; height: auto; }'
-            .'.photo { width: 78px; }'
+            .'.photo { width: 96px; text-align: center; }'
+            .'.ref { margin: 6px 0 0; font-size: 7px; letter-spacing: 0.12em; color: #6d6456; }'
             .'.name { font-family: DejaVu Serif, serif; font-size: 14px; }'
             .'.center { text-align: center; }'
             .'.price, th.price { text-align: right; white-space: nowrap; }'
@@ -196,14 +197,15 @@ final class SellerTable
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Artefactos');
-        foreach (['Foto', 'Nome', 'Categoria', 'Tamanho', 'Preço'] as $index => $header) {
+        foreach (['Foto', 'Ref', 'Nome', 'Categoria', 'Tamanho', 'Preço'] as $index => $header) {
             $sheet->setCellValue([$index + 1, 1], $header);
         }
         $sheet->getColumnDimension('A')->setWidth(14);
-        $sheet->getColumnDimension('B')->setWidth(28);
-        $sheet->getColumnDimension('C')->setWidth(16);
-        $sheet->getColumnDimension('D')->setWidth(12);
-        $sheet->getColumnDimension('E')->setWidth(16);
+        $sheet->getColumnDimension('B')->setWidth(16);
+        $sheet->getColumnDimension('C')->setWidth(28);
+        $sheet->getColumnDimension('D')->setWidth(16);
+        $sheet->getColumnDimension('E')->setWidth(12);
+        $sheet->getColumnDimension('F')->setWidth(16);
         $format = '"R$" #,##0.00';
         $temporary = [];
         $count = 0;
@@ -222,19 +224,20 @@ final class SellerTable
                 $drawing->setOffsetY(4);
                 $drawing->setWorksheet($sheet);
             }
-            $sheet->setCellValue('B'.$row, $this->pieceName($artefact));
-            $sheet->setCellValue('C'.$row, $this->categoryLabel($artefact));
-            $sheet->setCellValue('D'.$row, $artefact->getSize());
+            $sheet->setCellValue('B'.$row, $this->reference($artefact));
+            $sheet->setCellValue('C'.$row, $this->pieceName($artefact));
+            $sheet->setCellValue('D'.$row, $this->categoryLabel($artefact));
+            $sheet->setCellValue('E'.$row, $artefact->getSize());
             $cents = $artefact->getSalePriceCents();
             if ($cents !== null) {
-                $sheet->setCellValue('E'.$row, $cents / 100);
-                $sheet->getStyle('E'.$row)->getNumberFormat()->setFormatCode($format);
+                $sheet->setCellValue('F'.$row, $cents / 100);
+                $sheet->getStyle('F'.$row)->getNumberFormat()->setFormatCode($format);
             }
         }
         $totalRow = $count + 2;
-        $sheet->setCellValue('B'.$totalRow, $count.' abanilhos');
-        $sheet->setCellValue('E'.$totalRow, $count === 0 ? 0 : '=SUM(E2:E'.($totalRow - 1).')');
-        $sheet->getStyle('E'.$totalRow)->getNumberFormat()->setFormatCode($format);
+        $sheet->setCellValue('C'.$totalRow, $count.' abanilhos');
+        $sheet->setCellValue('F'.$totalRow, $count === 0 ? 0 : '=SUM(F2:F'.($totalRow - 1).')');
+        $sheet->getStyle('F'.$totalRow)->getNumberFormat()->setFormatCode($format);
 
         $path = tempnam(sys_get_temp_dir(), 'xlsx');
         if ($path === false) {
@@ -258,6 +261,13 @@ final class SellerTable
     private function pieceName(Artefact $artefact): string
     {
         return $artefact->getTitle() !== '' ? $artefact->getTitle() : 'Peça em registro';
+    }
+
+    private function reference(Artefact $artefact): string
+    {
+        $code = trim($artefact->getCode());
+
+        return $code !== '' ? $code : 'ORG-'.strtoupper(substr(str_replace('-', '', $artefact->getId()), 0, 4));
     }
 
     private function categoryLabel(Artefact $artefact): string

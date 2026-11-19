@@ -69,7 +69,7 @@
                     <span>Ações</span>
                 </div>
                 {% for row in rows %}
-                    <article class="record-row">
+                    <article class="record-row" data-cents="{{ row.priceCents is null ? '' : row.priceCents }}">
                         {% if row.path %}
                             <a class="row-open" href="{{ row.path }}" aria-label="Abrir {{ row.code }}"></a>
                         {% endif %}
@@ -151,6 +151,7 @@
             </div>
         {% endif %}
 
+        <p class="selection-total" data-archive-export-target="total" hidden></p>
         <p class="admin-motto">Uma peça. Uma história.</p>
     </main>
 {% endblock %}

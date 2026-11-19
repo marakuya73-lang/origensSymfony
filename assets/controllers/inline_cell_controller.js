@@ -71,6 +71,7 @@ export default class extends Controller {
             this.saved = payload.value ?? '';
             this.inputTarget.value = this.saved;
             this.pending = null;
+            this.inputTarget.dispatchEvent(new Event('input', { bubbles: true }));
             this.message('salvo ✓', false);
         } catch {
             this.inputTarget.value = this.saved;
