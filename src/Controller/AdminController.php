@@ -613,6 +613,7 @@ final class AdminController extends AbstractController
                 'createdOn' => $artefact->createdOn(),
                 'price' => SalePrice::brl($artefact->getSalePriceCents()),
                 'priceInput' => SalePrice::input($artefact->getSalePriceCents()),
+                'priceCents' => $artefact->getSalePriceCents(),
                 'size' => $artefact->getSize(),
                 'category' => $artefact->getCategory(),
                 'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,

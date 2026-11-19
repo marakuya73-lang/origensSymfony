@@ -228,6 +228,9 @@ final class AdminToolsTest extends WebTestCase
         self::assertSelectorExists('button[name="format"][value="pdf"]');
         self::assertSelectorExists('button[name="format"][value="xlsx"]');
         self::assertSelectorExists('input[name="ids[]"][value="'.$first->getId().'"]');
+        self::assertSelectorExists('.selection-total[hidden]');
+        self::assertSelectorExists('article.record-row[data-cents="125050"]');
+        self::assertStringContainsString('selecionados', (string) file_get_contents(dirname(__DIR__, 2).'/assets/controllers/archive_export_controller.js'));
         self::assertStringContainsString('z-index: 2', (string) file_get_contents(dirname(__DIR__, 2).'/assets/styles/app.css'));
         $token = $crawler->filter('input[name="_token"]')->attr('value');
         self::assertIsString($token);
@@ -242,6 +245,8 @@ final class AdminToolsTest extends WebTestCase
         $pdf = (string) $client->getResponse()->getContent();
         self::assertStringStartsWith('%PDF', $pdf);
         $html = static::getContainer()->get(SellerTable::class)->catalogueHtml([$first]);
+        self::assertStringContainsString('M-CAT1-001', $html);
+        self::assertStringContainsString('class="ref"', $html);
         self::assertStringContainsString('Cerâmica de coração', $html);
         self::assertStringContainsString('Categoria 1', $html);
         self::assertStringContainsString('R$ 1.250,50', $html);
@@ -276,8 +281,9 @@ final class AdminToolsTest extends WebTestCase
         self::assertStringContainsString('Categoria 1', $strings);
         self::assertStringContainsString('Categoria 2', $strings);
         self::assertStringContainsString('2 abanilhos', $strings);
+        self::assertStringContainsString('M-CAT1-001', $strings);
         self::assertStringContainsString('1250.5', $sheet);
-        self::assertStringContainsString('SUM(E2:E3)', $sheet);
+        self::assertStringContainsString('SUM(F2:F3)', $sheet);
 
         $client->request('POST', '/admin/records/export', [
             '_token' => $token,

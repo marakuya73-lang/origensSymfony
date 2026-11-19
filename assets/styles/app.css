@@ -288,6 +288,17 @@ a { color: inherit; }
     align-items: center;
     gap: 0.35rem;
 }
+.selection-total {
+    position: sticky;
+    bottom: 0.75rem;
+    z-index: 4;
+    margin: 1.25rem 0 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--rule);
+    background: var(--background);
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+}
 .admin-motto { margin-top: 4rem; font-family: var(--font-display); font-size: 1.25rem; font-style: italic; color: var(--muted); }
 
 .editor-page { min-height: 100vh; display: flex; justify-content: center; padding: 1.5rem 1rem 3rem; }
@@ -541,6 +552,15 @@ fieldset:disabled { opacity: 0.6; }
     .row-actions { flex: initial; flex-wrap: nowrap; justify-content: flex-end; }
     .row-open { grid-column: 1 / -1; grid-row: 1; }
     .record-head { padding-bottom: 0.75rem; border-bottom: 1px solid var(--rule); }
+    .selection-total {
+        bottom: 1.25rem;
+        width: fit-content;
+        margin-left: auto;
+        padding: 0.85rem 1.25rem;
+        font-family: var(--font-display);
+        font-size: 1.2rem;
+        letter-spacing: 0.03em;
+    }
     .row-date-desktop, .row-status { display: flex; }
     .row-status-mobile, .row-date-mobile { display: none; }
     .editor-panel { padding: 2rem; }
