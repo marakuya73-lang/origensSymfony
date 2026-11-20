@@ -32,8 +32,15 @@ final class SubmissionParser
             $paths = $this->paths($request, $uploaded);
             $this->images->assertExist($paths);
             $materials = $this->materials($request);
-            $size = $current?->getSize() ?? $request->request->getString('size');
-            $category = $current?->getCategory() ?? $request->request->getInt('category');
+            $size = $request->request->getString('size');
+            $category = $request->request->getInt('category');
+            if ($size === '' && $current instanceof Artefact) {
+                $size = $current->getSize();
+            }
+            if (!$request->request->has('category') && $current instanceof Artefact) {
+                $category = $current->getCategory();
+            }
+            $salePriceCents = SalePrice::cents($request->request->getString('sale_price'));
             $data = ArtefactData::fromSubmitted(
                 $request->request->getString('title'),
                 $size,
@@ -45,6 +52,8 @@ final class SubmissionParser
                 $request->request->getString('handmade'),
                 $paths,
                 $request->request->getString('record_date'),
+                $salePriceCents,
+                $request->request->getString('symbolism'),
             );
 
             return new Submission(
@@ -61,6 +70,9 @@ final class SubmissionParser
                     $data->images,
                     $this->images,
                     $current,
+                    SalePrice::input($data->salePriceCents),
+                    $data->symbolism,
+                    $request->request->getString('suggested_price'),
                 ),
                 $data,
                 null,
@@ -162,6 +174,9 @@ final class SubmissionParser
             $paths,
             $this->images,
             $current,
+            $request->request->getString('sale_price'),
+            $request->request->getString('symbolism'),
+            $request->request->getString('suggested_price'),
         );
     }
 

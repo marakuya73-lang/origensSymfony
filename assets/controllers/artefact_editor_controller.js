@@ -4,14 +4,133 @@ const TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_BYTES = 10 * 1024 * 1024;
 
 export default class extends Controller {
-    static targets = ['list', 'file', 'materials', 'materialTemplate', 'photoTemplate', 'error', 'uploadLabel', 'status'];
+    static targets = ['list', 'file', 'materials', 'materialTemplate', 'photoTemplate', 'error', 'uploadLabel', 'status', 'locked'];
     static values = { uploadUrl: String, token: String, persisted: Boolean, max: { type: Number, default: 12 } };
 
     connect() {
         this.savedSnapshot = this.snapshot();
+        this.reviewing = false;
+        this.touched = new Set();
+        this.element.addEventListener('input', (event) => {
+            this.noteTouch(event);
+            this.refreshSuggestedWarning();
+        });
+        this.element.addEventListener('change', (event) => this.noteTouch(event));
+        this.refreshSuggestedWarning();
+        this.element.addEventListener('keydown', (event) => this.onKey(event));
+        this.onOutside = (event) => {
+            const active = document.activeElement;
+            if (!(active instanceof HTMLElement) || !this.element.contains(active)) {
+                return;
+            }
+            if (event.target instanceof Node && this.element.contains(event.target)) {
+                return;
+            }
+            this.persist();
+        };
+        document.addEventListener('touchend', this.onOutside, true);
+        this.element.querySelector('[data-submit]')?.addEventListener('touchend', () => this.blurFocused());
+    }
+
+    disconnect() {
+        document.removeEventListener('touchend', this.onOutside, true);
+    }
+
+    refreshSuggestedWarning() {
+        const warning = this.element.querySelector('[data-suggested-warning]');
+        if (!(warning instanceof HTMLElement)) {
+            return;
+        }
+        const price = this.parseCents(this.element.querySelector('[name="sale_price"]')?.value ?? '');
+        const suggested = this.parseCents(this.element.querySelector('[name="suggested_price"]')?.value ?? '');
+        const floor = price === null ? null : Math.floor((price * 13 + 5) / 10);
+        warning.hidden = !(floor !== null && suggested !== null && suggested < floor);
+    }
+
+    parseCents(raw) {
+        let value = String(raw).replace(/R\$/g, '').replace(/\s/g, '').trim();
+        if (value === '') {
+            return null;
+        }
+        if (value.includes(',')) {
+            value = value.replace(/\./g, '').replace(',', '.');
+        } else if (/^\d{1,3}(\.\d{3})+$/.test(value)) {
+            value = value.replace(/\./g, '');
+        }
+        if (!/^\d+(\.\d{1,2})?$/.test(value)) {
+            return null;
+        }
+        const [reais, fraction = '0'] = value.split('.');
+
+        return (Number(reais) * 100) + Number(fraction.padEnd(2, '0').slice(0, 2));
+    }
+
+    onKey(event) {
+        if (event.key !== 'Enter' && event.keyCode !== 13) {
+            return;
+        }
+        if (!(event.target instanceof HTMLInputElement) || event.target.type === 'file') {
+            return;
+        }
+        this.persist();
+    }
+
+    blurFocused() {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && this.element.contains(active)) {
+            active.blur();
+        }
+    }
+
+    noteTouch(event) {
+        if (!event.isTrusted || !(event.target instanceof Element) || event.target.closest('[data-assist]')) {
+            return;
+        }
+        const field = this.fieldName(event.target);
+        if (field) {
+            this.touched.add(field);
+            if (this.hasLockedTarget) {
+                this.lockedTarget.value = JSON.stringify(this.touchedFields());
+            }
+        }
+    }
+
+    fieldName(target) {
+        if (target.closest('[data-material]')) {
+            return 'materials';
+        }
+        if (['title', 'description', 'symbolism', 'dimensions', 'care', 'handmade', 'size', 'category', 'sale_price', 'suggested_price'].includes(target.name)) {
+            return target.name;
+        }
+
+        return null;
+    }
+
+    touchedFields() {
+        return [...this.touched];
+    }
+
+    currentForm() {
+        const value = (name) => this.element.querySelector(`[name="${name}"]`)?.value ?? '';
+        const size = this.element.querySelector('input[name="size"]:checked');
+
+        return {
+            title: value('title'),
+            description: value('description'),
+            symbolism: value('symbolism'),
+            dimensions: value('dimensions'),
+            handmade: value('handmade'),
+            care: value('care'),
+            size: size instanceof HTMLInputElement ? size.value : '',
+            materials: this.materialRows().map((row) => ({
+                name: row.querySelector('[data-name]')?.value ?? '',
+                note: row.querySelector('[data-note]')?.value ?? '',
+            })),
+        };
     }
 
     guard(event) {
+        this.blurFocused();
         if (this.uploading) {
             event.preventDefault();
         }
@@ -22,10 +141,133 @@ export default class extends Controller {
         if (next instanceof Element && this.element.contains(next) && next.matches('[data-submit], a.btn')) {
             return;
         }
+        if (event?.target instanceof Element && event.target.closest('[data-assist]')) {
+            return;
+        }
+        if (next instanceof Element && next.closest('[data-assist]')) {
+            return;
+        }
         if (event?.target instanceof HTMLInputElement && event.target.type === 'file') {
             return;
         }
         this.persist();
+    }
+
+    applyProfile(profile) {
+        this.reviewing = true;
+        this.fillEmpty('title', profile.title);
+        this.fillEmpty('description', profile.description);
+        this.fillEmpty('symbolism', profile.symbolism);
+        this.fillEmpty('dimensions', profile.dimensions);
+        this.fillEmpty('handmade', profile.handmade);
+        const care = this.element.querySelector('[name="care"]');
+        if (care instanceof HTMLTextAreaElement && care.value.trim() === '' && Array.isArray(profile.care)) {
+            care.value = profile.care.filter((line) => typeof line === 'string' && line.trim() !== '').join('\n');
+        }
+        this.fillEmptyMaterialNotes(Array.isArray(profile.materials) ? profile.materials : []);
+        if (this.hasErrorTarget) {
+            this.errorTarget.hidden = true;
+        }
+    }
+
+    fillEmpty(name, value) {
+        const field = this.element.querySelector(`[name="${name}"]`);
+        if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) {
+            return;
+        }
+        if (field.value.trim() !== '' || typeof value !== 'string' || value.trim() === '') {
+            return;
+        }
+        field.value = value;
+    }
+
+    fillEmptyMaterialNotes(materials) {
+        const rows = this.materialRows();
+        const named = rows.some((row) => (row.querySelector('[data-name]')?.value || '').trim() !== '');
+        if (!named) {
+            this.replaceMaterials(materials);
+            return;
+        }
+        rows.forEach((row) => {
+            const name = (row.querySelector('[data-name]')?.value || '').trim().toLowerCase();
+            const note = row.querySelector('[data-note]');
+            if (!name || !(note instanceof HTMLTextAreaElement) || note.value.trim() !== '') {
+                return;
+            }
+            const match = materials.find((item) => item && typeof item.name === 'string' && item.name.trim().toLowerCase() === name && typeof item.note === 'string' && item.note.trim() !== '');
+            if (match) {
+                note.value = match.note;
+            }
+        });
+    }
+
+    write(name, value) {
+        const field = this.element.querySelector(`[name="${name}"]`);
+        if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+            field.value = typeof value === 'string' ? value : '';
+        }
+    }
+
+    replaceMaterials(materials) {
+        const rows = materials
+            .filter((row) => row && typeof row.name === 'string' && row.name.trim() !== '')
+            .slice(0, 30);
+        if (!rows.length) {
+            return;
+        }
+        this.materialsTarget.replaceChildren();
+        rows.forEach(() => this.addMaterial());
+        this.materialRows().forEach((row, index) => {
+            const name = row.querySelector('[data-name]');
+            const note = row.querySelector('[data-note]');
+            if (name) {
+                name.value = rows[index].name;
+            }
+            if (note) {
+                note.value = typeof rows[index].note === 'string' ? rows[index].note : '';
+            }
+        });
+        this.refreshMaterials();
+    }
+
+    applySize(size) {
+        if (size !== 'P' && size !== 'M' && size !== 'G') {
+            return;
+        }
+        const input = this.element.querySelector(`input[name="size"][value="${size}"]`);
+        if (!(input instanceof HTMLInputElement) || input.closest('fieldset')?.disabled) {
+            return;
+        }
+        input.checked = true;
+    }
+
+    async prepareUpload(file) {
+        if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') {
+            return file;
+        }
+        try {
+            const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+            const longest = Math.max(bitmap.width, bitmap.height);
+            const scale = Math.min(1, 2000 / longest);
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+            canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+            const context = canvas.getContext('2d');
+            if (!context) {
+                bitmap.close?.();
+                return file;
+            }
+            context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            bitmap.close?.();
+            const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+            if (!blob) {
+                return file;
+            }
+
+            return new File([blob], 'foto.jpg', { type: 'image/jpeg' });
+        } catch {
+            return file;
+        }
     }
 
     async upload() {
@@ -47,8 +289,9 @@ export default class extends Controller {
                     this.showError('Use fotos JPG, PNG ou WebP de até 10 MB.');
                     continue;
                 }
+                const prepared = await this.prepareUpload(file);
                 const body = new FormData();
-                body.append('image', file);
+                body.append('image', prepared);
                 body.append('_token', this.tokenValue);
                 const response = await fetch(this.uploadUrlValue, { method: 'POST', body, headers: { Accept: 'application/json' } });
                 let payload = {};
@@ -66,7 +309,7 @@ export default class extends Controller {
         } finally {
             this.uploading -= 1;
             if (!this.uploading) {
-                this.uploadLabelTarget.textContent = 'Adicionar fotos';
+                this.uploadLabelTarget.textContent = 'Adicionar outra foto';
                 this.persist();
             }
         }
@@ -175,6 +418,9 @@ export default class extends Controller {
     }
 
     persist() {
+        if (this.reviewing) {
+            return;
+        }
         this.wanted = true;
         if (this.saving) {
             return;
@@ -214,9 +460,13 @@ export default class extends Controller {
 
         this.errorTarget.hidden = true;
         this.setStatus('Salvando…');
+        const body = new FormData();
+        for (const [key, value] of this.entries()) {
+            body.append(key, value);
+        }
         const response = await fetch(this.element.action, {
             method: 'POST',
-            body: new FormData(this.element),
+            body,
             credentials: 'same-origin',
             headers: { Accept: 'application/json', 'X-Origens-Autosave': '1' },
         });
@@ -233,6 +483,7 @@ export default class extends Controller {
 
         this.savedSnapshot = this.snapshot();
         this.remember(payload);
+        this.element.dispatchEvent(new CustomEvent('origens:saved', { detail: payload }));
         this.setStatus('Salvo');
     }
 
@@ -242,9 +493,6 @@ export default class extends Controller {
         }
         this.persistedValue = true;
         this.element.action = payload.editUrl;
-        this.element.querySelectorAll('[data-identity]').forEach((field) => {
-            field.disabled = true;
-        });
         const title = this.element.querySelector('.editor-title');
         if (title) {
             title.textContent = 'Editar artefacto';
@@ -266,16 +514,26 @@ export default class extends Controller {
         return value('title') !== '' && value('record_date') !== '' && value('care') !== '' && value('handmade') !== '' && names && this.photos().length > 0;
     }
 
-    snapshot() {
-        const parts = [];
-        for (const [key, value] of new FormData(this.element).entries()) {
-            if (value instanceof File) {
+    entries() {
+        const rows = [];
+        for (const element of this.element.elements) {
+            if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement)) {
                 continue;
             }
-            parts.push(`${key}=${value}`);
+            if (!element.name || element.disabled || element.type === 'file' || element.name === 'generate') {
+                continue;
+            }
+            if ((element.type === 'checkbox' || element.type === 'radio') && !element.checked) {
+                continue;
+            }
+            rows.push([element.name, element.value]);
         }
 
-        return parts.join('&');
+        return rows;
+    }
+
+    snapshot() {
+        return this.entries().map(([key, value]) => `${key}=${value}`).join('&');
     }
 
     setStatus(message) {

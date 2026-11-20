@@ -14,6 +14,31 @@ use Symfony\Component\Security\Core\User\InMemoryUser;
 
 final class ArchiveFlowTest extends WebTestCase
 {
+    public function testBackupDownloadIsReservedForTheOwner(): void
+    {
+        $client = $this->browser();
+        $client->request('GET', '/admin/records/backup');
+        self::assertResponseRedirects('/');
+    }
+
+    public function testTheOwnerCanDownloadABackupAndSeeWhenItWasTaken(): void
+    {
+        $marker = dirname(__DIR__, 2).'/var/last-download.txt';
+        if (is_file($marker)) {
+            unlink($marker);
+        }
+        $owner = $this->ownerClient();
+        $owner->request('GET', '/admin/records');
+        self::assertSelectorTextContains('.backup-status', 'Último backup baixado: nenhum.');
+        $owner->request('GET', '/admin/records/backup');
+        self::assertResponseIsSuccessful();
+        $disposition = (string) $owner->getResponse()->headers->get('content-disposition');
+        self::assertMatchesRegularExpression('/origens-backup-\d{8}-\d{4}\.zip/', $disposition);
+        $owner->request('GET', '/admin/records');
+        self::assertSelectorTextContains('.backup-status', 'Último backup baixado:');
+        self::assertStringNotContainsString('Último backup baixado: nenhum', (string) $owner->getResponse()->getContent());
+    }
+
     public function testHomeIsTheOwnerLogin(): void
     {
         $client = $this->browser();
@@ -149,6 +174,122 @@ final class ArchiveFlowTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('[role="alert"]', 'Não foi possível entrar');
+    }
+
+    public function testPublicPageDoesNotContainTheSalePrice(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => 'Cocar',
+            'size' => 'M',
+            'category' => '1',
+            'description' => 'Uma peça de teste.',
+            'dimensions' => '20 cm',
+            'materials' => [['name' => 'Pedra', 'note' => 'Labradorita informada.']],
+            'care' => 'Guardar seco.',
+            'handmade' => 'Feito à mão com calma.',
+            'record_date' => '2026-10-18',
+            'sale_price' => 'R$ 987,65',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+
+        self::assertResponseRedirects('/admin/records/saved');
+        $client->followRedirect();
+        $path = parse_url(trim($client->getCrawler()->filter('.saved-url')->text()), PHP_URL_PATH);
+        self::assertIsString($path);
+
+        $client->request('GET', $path);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('text/html', (string) $client->getResponse()->headers->get('content-type'));
+        $html = (string) $client->getResponse()->getContent();
+        $lower = mb_strtolower($html);
+        self::assertStringContainsString('Cocar', $html);
+        self::assertStringNotContainsString('987,65', $html);
+        self::assertStringNotContainsString('987.65', $html);
+        self::assertStringNotContainsString('98765', $html);
+        self::assertStringNotContainsString('R$', $html);
+        self::assertStringNotContainsString('preço', $lower);
+        self::assertStringNotContainsString('sugerido', $lower);
+        self::assertStringNotContainsString('venda', $lower);
+        self::assertStringNotContainsString('sale_price', $lower);
+        self::assertStringNotContainsString('salepricecents', $lower);
+        self::assertStringNotContainsString('class="nfc"', $html);
+        self::assertStringNotContainsString('nfc-url', $html);
+        self::assertStringNotContainsString('class="symbolism"', $html);
+        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action*="touchend->read-aloud#toggle"]');
+
+        $client->request('GET', '/admin/records');
+        $list = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('>R$</span>', $list);
+        self::assertStringContainsString('value="987,65"', $list);
+        $edit = $client->getCrawler()->filter('a[aria-label="Editar M-CAT1-001"]')->attr('href');
+        self::assertIsString($edit);
+        $client->request('GET', $edit);
+        self::assertSame('987,65', $client->getCrawler()->filter('input[name="sale_price"]')->attr('value'));
+    }
+
+    public function testPublicPageShowsTheSymbolicMessageOnlyWhenItIsFilled(): void
+    {
+        $client = $this->ownerClient();
+        $client->request('GET', '/admin/records/new');
+        $token = $client->getCrawler()->filter('input[name="_token"]')->attr('value');
+        self::assertIsString($token);
+
+        $client->request('POST', '/admin/records/new', [
+            '_token' => $token,
+            'title' => 'Garoa',
+            'size' => 'P',
+            'category' => '1',
+            'description' => 'Uma peça de teste.',
+            'symbolism' => 'Chuva fina e pena clara firmam quem está de passagem.',
+            'dimensions' => '12 cm',
+            'materials' => [['name' => 'Pena', 'note' => 'Clara.']],
+            'care' => 'Guardar seco.',
+            'handmade' => 'Feito à mão com calma.',
+            'record_date' => '2026-10-18',
+        ], [
+            'uploads' => [$this->jpeg()],
+        ]);
+
+        self::assertResponseRedirects('/admin/records/saved');
+        $client->followRedirect();
+        $path = parse_url(trim($client->getCrawler()->filter('.saved-url')->text()), PHP_URL_PATH);
+        self::assertIsString($path);
+
+        $client->request('GET', $path);
+        $html = (string) $client->getResponse()->getContent();
+        self::assertStringContainsString('class="symbolism"', $html);
+        self::assertStringContainsString('Chuva fina e pena clara firmam quem está de passagem.', $html);
+        self::assertStringNotContainsString('class="nfc"', $html);
+        self::assertStringNotContainsString('987', $html);
+        self::assertSelectorExists('p.lede[data-controller="read-aloud"][data-action*="touchend->read-aloud#toggle"]');
+        self::assertSelectorExists('p.symbolism[data-controller="read-aloud"][data-action*="touchend->read-aloud#toggle"]');
+        self::assertStringContainsString('read_aloud_controller', $html);
+        self::assertSelectorNotExists('p.lede button, p.symbolism button, p.lede a, p.symbolism a');
+        $spoken = '';
+        $client->getCrawler()->filter('p.lede[data-controller="read-aloud"], p.symbolism')->each(function ($node) use (&$spoken): void {
+            $spoken .= $node->outerHtml();
+            self::assertNull($node->attr('title'));
+            self::assertNull($node->attr('aria-label'));
+        });
+        self::assertStringNotContainsString('Ouvir', $spoken);
+        self::assertStringNotContainsString('<button', $spoken);
+        $script = (string) file_get_contents(dirname(__DIR__, 2).'/assets/controllers/read_aloud_controller.js');
+        self::assertStringContainsString('speechSynthesis', $script);
+        self::assertStringContainsString("utterance.lang = 'pt-BR'", $script);
+        self::assertStringContainsString('utterance.rate = 0.95', $script);
+        self::assertStringContainsString('voiceschanged', $script);
+        self::assertStringContainsString('pagehide', $script);
+        self::assertStringContainsString('natural', $script);
+        self::assertStringContainsString('touchend', $script);
+        self::assertStringNotContainsString('setTimeout', $script);
+        self::assertSame(1, substr_count($script, 'speechSynthesis.cancel'));
     }
 
     private function browser(): KernelBrowser

@@ -25,6 +25,10 @@ final class ArtefactDraft
         public array $images,
         public bool $locked,
         public ?string $code,
+        public string $salePrice = '',
+        public string $symbolism = '',
+        public string $suggestedPrice = '',
+        public bool $suggestedLow = false,
     ) {
     }
 
@@ -43,6 +47,7 @@ final class ArtefactDraft
             images: [],
             locked: false,
             code: null,
+            salePrice: '',
         );
     }
 
@@ -61,6 +66,10 @@ final class ArtefactDraft
             images: self::views($artefact->getImages(), $images),
             locked: true,
             code: $artefact->getCode(),
+            salePrice: SalePrice::input($artefact->getSalePriceCents()),
+            symbolism: $artefact->getSymbolism(),
+            suggestedPrice: SalePrice::input($artefact->getSuggestedPriceCents()),
+            suggestedLow: SalePrice::belowSuggestion($artefact->getSalePriceCents(), $artefact->getSuggestedPriceCents()),
         );
     }
 
@@ -81,6 +90,9 @@ final class ArtefactDraft
         array $paths,
         ImageStore $images,
         ?Artefact $current,
+        string $salePrice = '',
+        string $symbolism = '',
+        string $suggestedPrice = '',
     ): self {
         if (!in_array($size, ['P', 'M', 'G'], true)) {
             $size = 'M';
@@ -94,8 +106,8 @@ final class ArtefactDraft
 
         return new self(
             title: $title,
-            size: $current?->getSize() ?? $size,
-            category: $current?->getCategory() ?? $category,
+            size: $size,
+            category: $category,
             description: $description,
             dimensions: $dimensions,
             recordDate: $recordDate !== '' ? $recordDate : ArtefactRules::localToday(),
@@ -105,7 +117,20 @@ final class ArtefactDraft
             images: self::views($paths, $images),
             locked: $current !== null,
             code: $current?->getCode(),
+            salePrice: $salePrice,
+            symbolism: $symbolism,
+            suggestedPrice: $suggestedPrice,
+            suggestedLow: self::lowSuggestion($salePrice, $suggestedPrice),
         );
+    }
+
+    private static function lowSuggestion(string $price, string $suggested): bool
+    {
+        try {
+            return SalePrice::belowSuggestion(SalePrice::cents($price), SalePrice::cents($suggested));
+        } catch (InvalidArtefact) {
+            return false;
+        }
     }
 
     /**

@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block body %}
-    <main class="admin-page">
+    <main class="admin-page" data-controller="archive-export" data-inline-token="{{ csrf_token('inline') }}">
         <header class="admin-bar">
             <div class="brand">
                 <img class="brand-mark" src="{{ asset('brand.png') }}?v=5" alt="" width="56" height="56">
@@ -28,8 +28,26 @@
 
         <div class="admin-heading">
             <h1>Artefactos</h1>
-            <a class="btn" href="{{ path('admin_artefact_new') }}">{{ icons.svg('plus') }} Novo artefacto</a>
+            <div class="heading-actions">
+                {% if rows is not empty %}
+                    <form id="artefact-export" class="export-actions" method="post" action="{{ path('admin_artefact_export') }}" data-turbo="false">
+                        <input type="hidden" name="_token" value="{{ csrf_token('export') }}">
+                        <button type="submit" class="btn btn-outline" name="format" value="pdf" data-archive-export-target="submit">Exportar PDF</button>
+                        <button type="submit" class="btn btn-outline" name="format" value="xlsx" data-archive-export-target="submit">Exportar XLSX</button>
+                    </form>
+                {% endif %}
+                <a class="btn btn-outline" href="{{ path('admin_artefact_backup') }}">Baixar backup</a>
+                <a class="btn" href="{{ path('admin_artefact_new') }}">{{ icons.svg('plus') }} Novo artefacto</a>
+            </div>
         </div>
+        <p class="hint backup-status">{{ backup.label }}</p>
+        {% if backup.stale %}
+            <p class="hint backup-warning">Há peças gravadas depois deste backup.</p>
+        {% endif %}
+
+        {% if exportError %}
+            <p class="form-error" role="alert">{{ exportError }}</p>
+        {% endif %}
 
         {% if rows is empty %}
             <div class="empty-archive">
@@ -38,31 +56,85 @@
             </div>
         {% else %}
             <div>
+                <label class="select-all">
+                    <input type="checkbox" data-archive-export-target="all" data-action="change->archive-export#toggleAll">
+                    Selecionar todas
+                </label>
                 <div class="record-head label">
+                    <span><span class="sr-only">Seleção</span></span>
+                    <span>Foto</span>
                     <span>Peça</span>
-                    <span>Referência</span>
-                    <span>Nome</span>
+                    <span>Preço</span>
+                    <span>Sugerido</span>
+                    <span>Tamanho</span>
+                    <span>Categoria</span>
                     <span>Criação</span>
-                    <span></span>
+                    <span>Status</span>
+                    <span>Ações</span>
                 </div>
                 {% for row in rows %}
-                    <article class="record-row">
+                    <article class="record-row" data-cents="{{ row.priceCents is null ? '' : row.priceCents }}" data-suggested-cents="{{ row.suggestedCents is null ? '' : row.suggestedCents }}">
                         {% if row.path %}
                             <a class="row-open" href="{{ row.path }}" aria-label="Abrir {{ row.code }}"></a>
                         {% endif %}
+                        <label class="row-check">
+                            <input type="checkbox" name="ids[]" value="{{ row.id }}" form="artefact-export" data-action="change->archive-export#sync">
+                            <span class="sr-only">Selecionar {{ row.code }}</span>
+                        </label>
                         {% if row.image %}
-                            <img src="{{ asset(row.image) }}" alt="{{ row.title }}">
+                            <img src="{{ asset(photo_src(row.image, 400)) }}" width="400" height="500" alt="{{ row.title }}" loading="lazy">
                         {% else %}
                             <span></span>
                         {% endif %}
-                        <div>
-                            <p class="code">{{ row.code }}</p>
-                            <p class="row-title-mobile">{{ row.title }}</p>
+                        <div class="row-main">
+                            <p class="code">{{ row.code }}{% if row.hasAudio %} <span class="audio-badge" title="Tem áudio">{{ icons.svg('mic') }}<span class="sr-only">Tem áudio</span></span>{% endif %}</p>
+                            <div class="row-edit row-edit-title" data-controller="inline-cell" data-inline-cell-url-value="{{ path('admin_artefact_patch', {id: row.id}) }}" data-inline-cell-token-value="{{ csrf_token('inline') }}" data-inline-cell-field-value="title">
+                                <label class="sr-only" for="title-{{ row.id }}">Nome de {{ row.code }}</label>
+                                <input id="title-{{ row.id }}" data-inline-cell-target="input" data-action="blur->inline-cell#commit change->inline-cell#commit focusout->inline-cell#commit keydown->inline-cell#keydown" value="{{ row.titleInput }}" maxlength="180" enterkeyhint="done" autocomplete="off">
+                                <span class="row-edit-status" data-inline-cell-target="status" hidden></span>
+                            </div>
                             <p class="quiet row-date-mobile">{{ row.createdOn }}</p>
                         </div>
-                        <p class="row-title-desktop">{{ row.title }}</p>
+                        <div class="row-edit row-price" data-controller="inline-cell" data-inline-cell-url-value="{{ path('admin_artefact_patch', {id: row.id}) }}" data-inline-cell-token-value="{{ csrf_token('inline') }}" data-inline-cell-field-value="price">
+                            <label class="sr-only" for="price-{{ row.id }}">Preço de {{ row.code }}</label>
+                            <span class="row-price-prefix" aria-hidden="true">R$</span>
+                            <input id="price-{{ row.id }}" data-inline-cell-target="input" data-action="blur->inline-cell#commit change->inline-cell#commit focusout->inline-cell#commit keydown->inline-cell#keydown" value="{{ row.priceInput }}" inputmode="decimal" enterkeyhint="done" placeholder="0,00" autocomplete="off">
+                            <span class="row-edit-status" data-inline-cell-target="status" hidden></span>
+                        </div>
+                        <div class="row-edit row-suggested" data-controller="inline-cell" data-inline-cell-url-value="{{ path('admin_artefact_patch', {id: row.id}) }}" data-inline-cell-token-value="{{ csrf_token('inline') }}" data-inline-cell-field-value="suggested">
+                            <label class="sr-only" for="suggested-{{ row.id }}">Preço sugerido de {{ row.code }}</label>
+                            <span class="row-price-prefix" aria-hidden="true">R$</span>
+                            <input id="suggested-{{ row.id }}" data-inline-cell-target="input" data-action="blur->inline-cell#commit change->inline-cell#commit focusout->inline-cell#commit keydown->inline-cell#keydown" value="{{ row.suggestedInput }}" inputmode="decimal" enterkeyhint="done" placeholder="0,00" autocomplete="off">
+                            <span class="row-edit-status" data-inline-cell-target="status" hidden></span>
+                        </div>
+                        <div class="row-edit" data-controller="inline-cell" data-inline-cell-url-value="{{ path('admin_artefact_patch', {id: row.id}) }}" data-inline-cell-token-value="{{ csrf_token('inline') }}" data-inline-cell-field-value="size">
+                            <label class="sr-only" for="size-{{ row.id }}">Tamanho de {{ row.code }}</label>
+                            <select id="size-{{ row.id }}" data-inline-cell-target="input" data-action="change->inline-cell#commit focusout->inline-cell#commit">
+                                {% for size in ['P', 'M', 'G'] %}
+                                    <option value="{{ size }}" {% if row.size == size %}selected{% endif %}>{{ size }}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="row-edit-status" data-inline-cell-target="status" hidden></span>
+                        </div>
+                        <div class="row-edit" data-controller="inline-cell" data-inline-cell-url-value="{{ path('admin_artefact_patch', {id: row.id}) }}" data-inline-cell-token-value="{{ csrf_token('inline') }}" data-inline-cell-field-value="category">
+                            <label class="sr-only" for="category-{{ row.id }}">Categoria de {{ row.code }}</label>
+                            <select id="category-{{ row.id }}" data-inline-cell-target="input" data-action="change->inline-cell#commit focusout->inline-cell#commit">
+                                {% for value, label in constant('App\\Artefact\\ArtefactRules::CATEGORY_LABELS') %}
+                                    <option value="{{ value }}" {% if row.category == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="row-edit-status" data-inline-cell-target="status" hidden></span>
+                        </div>
                         <time class="quiet row-date-desktop">{{ row.createdOn }}</time>
+                        <div class="row-status">
+                            {% if row.aiLabel %}
+                                <p class="ai-badge">{{ row.aiLabel }}</p>
+                            {% endif %}
+                        </div>
                         <div class="row-actions">
+                            {% if row.aiLabel %}
+                                <p class="ai-badge row-status-mobile">{{ row.aiLabel }}</p>
+                            {% endif %}
                             {% if row.url %}
                                 <button type="button" class="btn btn-ghost btn-icon" data-controller="clipboard" data-clipboard-text-value="{{ row.url }}" data-action="clipboard#copy" aria-label="Copiar endereço público" title="Copiar endereço público">
                                     <span data-clipboard-target="idle">{{ icons.svg('copy') }}</span>
@@ -77,12 +149,19 @@
                                 </button>
                             </form>
                             <a class="btn btn-ghost btn-icon" href="{{ path('admin_artefact_edit', {id: row.id}) }}" title="Editar artefacto" aria-label="Editar {{ row.code }}">{{ icons.svg('pencil') }}</a>
+                            {% if row.image %}
+                                <form method="post" action="{{ path('admin_artefact_generate', {id: row.id}) }}" data-turbo="false">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('submit') }}">
+                                    <button type="submit" class="btn btn-ghost">Gerar novamente</button>
+                                </form>
+                            {% endif %}
                         </div>
                     </article>
                 {% endfor %}
             </div>
         {% endif %}
 
+        <p class="selection-total" data-archive-export-target="total" hidden></p>
         <p class="admin-motto">Uma peça. Uma história.</p>
     </main>
 {% endblock %}

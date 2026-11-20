@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Copy the live database to origens-data/backups. Safe to run from cron.
+# Keeps the last 10 copies and exits with an error if the copy fails.
+#
+#   15 4 * * * cd /home/u505516867/domains/origens.art.br/public_html && ./bin/origens-backup
+
+set -euo pipefail
+# shellcheck disable=SC1091
+source "$(dirname "$0")/origens-lib.sh"
+
+LIVE=$(current_db)
+if [ ! -f "$LIVE" ]; then
+    echo "origens-backup: database not found at $LIVE" >&2
+    exit 1
+fi
+backup_db "$LIVE"

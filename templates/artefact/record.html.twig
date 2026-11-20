@@ -28,7 +28,7 @@
         <main>
             <div class="hero">
                 <figure class="hero-figure">
-                    <img src="{{ asset(hero) }}" alt="{{ a.title }} — fotografia da peça {{ a.reference }}" width="1280" height="1600">
+                    <img src="{{ asset(photo_src(hero, 1200)) }}" srcset="{{ asset(photo_src(hero, 400)) }} 400w, {{ asset(photo_src(hero, 1200)) }} 1200w, {{ asset(hero) }} 2000w" sizes="(max-width: 800px) 100vw, 36rem" width="1200" height="1500" alt="{{ a.title }} — fotografia da peça {{ a.reference }}">
                     <figcaption class="label figure-caption">
                         <span>Fig. 1 — vista frontal</span>
                         <span>{{ a.reference }}</span>
@@ -38,8 +38,11 @@
                 <div class="hero-copy">
                     <p class="label piece-ref">{{ a.reference }}</p>
                     <h1 class="piece-title">{{ a.title }}</h1>
+                    {% if a.pending %}
+                        <p class="lede">O texto desta peça ainda está sendo escrito.</p>
+                    {% endif %}
                     {% if a.lede %}
-                        <p class="lede">{{ a.lede }}</p>
+                        <p class="lede" data-controller="read-aloud" data-action="click->read-aloud#toggle touchend->read-aloud#toggle">{{ a.lede|nl2br }}</p>
                     {% endif %}
 
                     <dl class="meta-strip">
@@ -53,13 +56,9 @@
                         </div>
                     </dl>
 
-                    <p class="nfc">
-                        <svg class="icon icon-nfc" viewBox="0 0 24 24" aria-hidden="true">
-                            <rect x="3.5" y="3.5" width="17" height="17"></rect>
-                            <path d="M9 8.5c1.6 2.2 1.6 4.8 0 7M12 7c2.4 3 2.4 7 0 10M15 5.5c3.2 4 3.2 9 0 13"></path>
-                        </svg>
-                        <span class="nfc-url">{{ a.displayUrl }}</span>
-                    </p>
+                    {% if a.symbolism %}
+                        <p class="symbolism" data-controller="read-aloud" data-action="click->read-aloud#toggle touchend->read-aloud#toggle">{{ a.symbolism|nl2br }}</p>
+                    {% endif %}
                 </div>
             </div>
 
@@ -68,13 +67,14 @@
                     <div class="gallery">
                         {% for image in a.images|slice(1) %}
                             <figure>
-                                <img src="{{ asset(image) }}" alt="{{ a.title }} — detalhe {{ loop.index }}" loading="lazy">
+                                <img src="{{ asset(photo_src(image, 1200)) }}" srcset="{{ asset(photo_src(image, 400)) }} 400w, {{ asset(photo_src(image, 1200)) }} 1200w, {{ asset(image) }} 2000w" sizes="(max-width: 800px) 50vw, 20rem" width="800" height="1000" alt="{{ a.title }} — detalhe {{ loop.index }}" loading="lazy">
                                 <figcaption class="label figure-caption">Fig. {{ loop.index + 1 }} — detalhe</figcaption>
                             </figure>
                         {% endfor %}
                     </div>
                 {% endif %}
 
+                {% if a.materials is not empty %}
                 <section class="section">
                     <div class="section-label">
                         <p class="label">§ 01</p>
@@ -96,7 +96,9 @@
                         </ul>
                     </div>
                 </section>
+                {% endif %}
 
+                {% if a.handmade %}
                 <section class="section">
                     <div class="section-label">
                         <p class="label">§ 02</p>
@@ -106,7 +108,9 @@
                         <p class="handmade">{{ a.handmade|nl2br }}</p>
                     </div>
                 </section>
+                {% endif %}
 
+                {% if a.care is not empty %}
                 <section class="section">
                     <div class="section-label">
                         <p class="label">§ 03</p>
@@ -123,6 +127,7 @@
                         </ol>
                     </div>
                 </section>
+                {% endif %}
 
                 <section class="record-wrap">
                     <div class="record-card">

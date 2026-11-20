@@ -15,62 +15,33 @@
             action="{{ action }}"
             enctype="multipart/form-data"
             data-turbo="false"
-            data-controller="artefact-editor"
+            data-controller="artefact-editor profile-assist"
             data-artefact-editor-upload-url-value="{{ uploadUrl }}"
             data-artefact-editor-token-value="{{ csrf_token('submit') }}"
+            data-profile-assist-url-value="{{ profileUrl }}"
+            data-profile-assist-token-value="{{ csrf_token('submit') }}"
+            data-record-id="{{ recordId|default('') }}"
             data-artefact-editor-persisted-value="{{ draft.locked ? 'true' : 'false' }}"
             data-action="submit->artefact-editor#guard focusout->artefact-editor#save change->artefact-editor#save"
         >
             <input type="hidden" name="_token" value="{{ csrf_token('submit') }}">
+            <div class="ai-toast" data-profile-assist-target="toast" hidden role="alertdialog" aria-labelledby="ai-toast-title">
+                <p class="ai-toast-kicker" id="ai-toast-title">Não foi possível gerar</p>
+                <p data-profile-assist-target="toastMessage"></p>
+                <div class="assist-actions">
+                    <button type="button" class="btn" data-action="profile-assist#retry">Tentar novamente</button>
+                    <button type="button" class="btn btn-ghost" data-action="profile-assist#dismissToast">Fechar</button>
+                </div>
+            </div>
             <div>
                 <h1 class="editor-title">{{ draft.locked ? 'Editar artefacto' : 'Novo artefacto' }}</h1>
                 <p class="label editor-kicker">{{ draft.code ?: 'ORIGENS · Novo registro' }}</p>
+                <p class="ai-badge" data-profile-assist-target="badge" {% if not aiLabel|default('') %}hidden{% endif %}>{{ aiLabel|default('') }}</p>
+                <p class="hint" data-profile-assist-target="link" {% if not publicUrl|default('') %}hidden{% endif %}>{{ publicUrl|default('') }}</p>
             </div>
 
-            <label class="field">Nome do artefacto
-                <input name="title" required maxlength="180" value="{{ draft.title }}" autofocus>
-            </label>
-
-            <div class="split">
-                <fieldset data-identity {% if draft.locked %}disabled{% endif %}>
-                    <legend>Tamanho</legend>
-                    <div class="choice">
-                        {% for size in ['P', 'M', 'G'] %}
-                            <label class="choice-option">
-                                <input type="radio" name="size" value="{{ size }}" {% if draft.size == size %}checked{% endif %}>
-                                {{ size }}
-                            </label>
-                        {% endfor %}
-                    </div>
-                </fieldset>
-                <fieldset data-identity {% if draft.locked %}disabled{% endif %}>
-                    <legend>Categoria</legend>
-                    <div class="choice">
-                        {% for category in [1, 2, 3] %}
-                            <label class="choice-option">
-                                <input type="radio" name="category" value="{{ category }}" {% if draft.category == category %}checked{% endif %}>
-                                {{ category }}
-                            </label>
-                        {% endfor %}
-                    </div>
-                </fieldset>
-            </div>
-
-            <div class="split split-stack">
-                <label class="field">Data do registro
-                    <input type="date" name="record_date" required value="{{ draft.recordDate }}">
-                </label>
-                <label class="field">Dimensão (opcional)
-                    <input name="dimensions" maxlength="100" value="{{ draft.dimensions }}" placeholder="Ex.: aproximadamente 50 cm">
-                </label>
-            </div>
-
-            <label class="field">Descrição breve (opcional)
-                <textarea name="description" rows="2" maxlength="2000">{{ draft.description }}</textarea>
-            </label>
-
-            <fieldset class="photo-set">
-                <legend>Fotografias</legend>
+            <fieldset class="photo-set photo-lead">
+                <legend>Foto principal</legend>
                 <div class="photo-grid" data-artefact-editor-target="list">
                     {% for image in draft.images %}
                         <div class="photo" data-photo>
@@ -87,10 +58,13 @@
                         </div>
                     {% endfor %}
                 </div>
-                <label class="btn btn-outline upload-btn">
+                <label class="photo-capture">
                     {{ icons.svg('upload') }}
-                    <span data-artefact-editor-target="uploadLabel">Adicionar fotos</span>
-                    <input class="sr-only" type="file" name="uploads[]" accept="image/jpeg,image/png,image/webp" multiple data-artefact-editor-target="file" data-action="change->artefact-editor#upload">
+                    <span>
+                        <span class="photo-capture-title" data-artefact-editor-target="uploadLabel">Tirar ou escolher foto</span>
+                        <span class="hint">Câmera ou biblioteca. A primeira é a principal.</span>
+                    </span>
+                    <input class="sr-only" type="file" name="uploads[]" accept="image/*,image/jpeg,image/png,image/webp" multiple data-artefact-editor-target="file" data-action="change->artefact-editor#upload">
                 </label>
                 <template data-artefact-editor-target="photoTemplate">
                     <div class="photo" data-photo>
@@ -108,6 +82,133 @@
                 </template>
             </fieldset>
 
+            <details class="assist-fold" data-assist>
+                <summary class="assist-summary">✨ Preencher com IA</summary>
+                <div class="assist-body">
+                    <p class="assist-lead">A peça é gravada na hora, com o link permanente. A IA escreve o texto depois, sem apagar o que você mesma escreveu. Pode sair e registrar a próxima.</p>
+                    <label class="field">Notas (opcional)
+                        <textarea name="notes" rows="3" maxlength="4000" data-profile-assist-target="notes" placeholder="O que a peça é, de onde veio o material, o que não aparece na foto.">{{ notes|default('') }}</textarea>
+                    </label>
+                    <div class="recorder" data-slot="intro">
+                        <button type="button" class="record-btn" data-action="profile-assist#toggleRecord" aria-pressed="false">
+                            <span class="record-dot" aria-hidden="true"></span>
+                            <span class="record-mic" aria-hidden="true">{{ icons.svg('mic') }}</span>
+                            <span data-record-label>Gravar</span>
+                        </button>
+                        <label class="btn btn-ghost">
+                            {{ icons.svg('upload') }} Arquivo
+                            <input class="sr-only" type="file" accept="audio/*,.webm,.mp3,.m4a,.wav,.ogg,.aac,.flac,.mp4" data-action="change->profile-assist#chooseFile">
+                        </label>
+                        <div class="record-ready" hidden>
+                            <span class="record-duration" data-record-duration hidden></span>
+                            <audio controls></audio>
+                            <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio" title="Remover áudio">{{ icons.svg('trash') }}</button>
+                        </div>
+                    </div>
+                    <div class="saved-audio" data-profile-assist-target="savedAudio">
+                        <p data-profile-assist-target="savedAudioLabel">{{ audio.label }}</p>
+                        <audio controls preload="metadata" data-profile-assist-target="savedAudioPlayer" {% if not audio.stored %}hidden{% endif %}>{% if audio.stored and audio.url %}<source src="{{ audio.url }}" type="{{ audio.type|default('audio/mp4') }}">{% endif %}</audio>
+                        <div class="assist-actions" data-profile-assist-target="savedAudioActions" {% if not audio.stored %}hidden{% endif %}>
+                            <button type="button" class="btn btn-ghost" data-action="profile-assist#rerecord">Regravar</button>
+                            <button type="button" class="btn btn-ghost" data-action="profile-assist#removeSavedAudio">Remover</button>
+                        </div>
+                    </div>
+                    <input type="hidden" name="audio_ms" value="" data-profile-assist-target="audioMs">
+                    <input type="hidden" name="remove_audio" value="" data-profile-assist-target="removeAudio">
+                    <p class="hint">O áudio é opcional.</p>
+                    <div class="assist-actions">
+                        <button type="button" class="btn generate-btn" data-profile-assist-target="generate" data-action="profile-assist#saveAndGenerate"><span data-generate-label>Salvar e gerar com IA</span></button>
+                        <button type="button" class="btn btn-ghost" data-profile-assist-target="cancel" data-action="profile-assist#cancel" hidden>Cancelar</button>
+                    </div>
+                    <div class="chat" data-profile-assist-target="chat" hidden>
+                        <div class="chat-thread" data-profile-assist-target="thread"></div>
+                        <div data-profile-assist-target="composer">
+                            <label class="field">Resposta
+                                <textarea rows="2" maxlength="2000" data-profile-assist-target="reply" placeholder="Responda por texto, ou grave um áudio abaixo."></textarea>
+                            </label>
+                            <div class="recorder" data-slot="reply">
+                                <button type="button" class="record-btn" data-action="profile-assist#toggleRecord" aria-pressed="false">
+                                    <span class="record-dot" aria-hidden="true"></span>
+                                    <span class="record-mic" aria-hidden="true">{{ icons.svg('mic') }}</span>
+                                    <span data-record-label>Gravar</span>
+                                </button>
+                                <div class="record-ready" hidden>
+                                    <span class="record-duration" data-record-duration hidden></span>
+                                    <audio controls></audio>
+                                    <button type="button" class="btn btn-ghost btn-icon" data-action="profile-assist#discardClip" aria-label="Remover áudio da resposta" title="Remover áudio">{{ icons.svg('trash') }}</button>
+                                </div>
+                            </div>
+                            <div class="assist-actions">
+                                <button type="button" class="btn" data-profile-assist-target="send" data-action="profile-assist#reply">Enviar resposta</button>
+                                <button type="button" class="btn btn-ghost" data-action="profile-assist#endChat">Encerrar</button>
+                            </div>
+                        </div>
+                        <p class="hint" data-profile-assist-target="done" hidden>O perfil está completo. Revise os campos e salve quando quiser.</p>
+                        <button type="button" class="btn btn-ghost" data-profile-assist-target="resume" data-action="profile-assist#resume" hidden>Ainda quero ajustar</button>
+                    </div>
+                    <p class="hint" data-profile-assist-target="status" hidden></p>
+                </div>
+            </details>
+
+            <input type="hidden" name="locked" value="[]" data-artefact-editor-target="locked">
+            <label class="field">Nome do artefacto
+                <input name="title" maxlength="180" value="{{ draft.title }}" enterkeyhint="done" autofocus>
+            </label>
+
+            <div class="split">
+                <fieldset>
+                    <legend>Tamanho</legend>
+                    <div class="choice">
+                        {% for size in ['P', 'M', 'G'] %}
+                            <label class="choice-option">
+                                <input type="radio" name="size" value="{{ size }}" {% if draft.size == size %}checked{% endif %}>
+                                {{ size }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <fieldset>
+                    <legend>Categoria</legend>
+                    <div class="choice">
+                        {% for value, label in constant('App\\Artefact\\ArtefactRules::CATEGORY_LABELS') %}
+                            <label class="choice-option">
+                                <input type="radio" name="category" value="{{ value }}" {% if draft.category == value %}checked{% endif %}>
+                                {{ label }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+            </div>
+
+            <div class="split split-stack">
+                <label class="field">Data do registro
+                    <input type="date" name="record_date" required value="{{ draft.recordDate }}">
+                </label>
+                <label class="field">Dimensão (opcional)
+                    <input name="dimensions" maxlength="100" value="{{ draft.dimensions }}" placeholder="Ex.: aproximadamente 50 cm">
+                </label>
+            </div>
+
+            <label class="field">Preço de venda (opcional)
+                <input name="sale_price" inputmode="decimal" maxlength="16" value="{{ draft.salePrice }}" placeholder="Ex.: 1.250,00" enterkeyhint="done" autocomplete="off">
+            </label>
+            <p class="hint">Em reais. Fica no arquivo e na planilha, e não aparece na página pública.</p>
+            <label class="field">Preço sugerido (opcional)
+                <input name="suggested_price" inputmode="decimal" maxlength="16" value="{{ draft.suggestedPrice }}" placeholder="30% acima do preço" enterkeyhint="done" autocomplete="off" data-suggested-price>
+            </label>
+            <p class="hint">Começa 30% acima do preço. Se você alterar, o seu valor fica.</p>
+            <p class="hint suggested-warning" data-suggested-warning {% if not draft.suggestedLow %}hidden{% endif %}>Abaixo de 30% sobre o preço. Gravado mesmo assim.</p>
+
+            <label class="field">Descrição (opcional)
+                <textarea name="description" rows="8" maxlength="8000">{{ draft.description }}</textarea>
+            </label>
+            <p class="hint">A história da peça, com o que foi contado: origem, sentido e intenção.</p>
+
+            <label class="field">Simbologia (opcional)
+                <textarea name="symbolism" rows="5" maxlength="8000">{{ draft.symbolism }}</textarea>
+            </label>
+            <p class="hint">A mensagem simbólica. Se ficar preenchida, aparece na página pública, no lugar do antigo endereço.</p>
+
             <fieldset class="material-set">
                 <legend>Materiais e notas</legend>
                 <div class="material-stack" data-artefact-editor-target="materials">
@@ -115,7 +216,7 @@
                         <div class="material" data-material>
                             <div class="material-line">
                                 <label class="field" data-material-label>Material {{ loop.index }}
-                                    <input required maxlength="150" name="materials[{{ loop.index0 }}][name]" value="{{ material.name }}" data-name>
+                                    <input maxlength="150" name="materials[{{ loop.index0 }}][name]" value="{{ material.name }}" data-name>
                                 </label>
                                 <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#removeMaterial" data-remove-material aria-label="Remover material {{ loop.index }}" title="Remover material" {% if draft.materials|length == 1 %}disabled{% endif %}>{{ icons.svg('trash') }}</button>
                             </div>
@@ -130,7 +231,7 @@
                     <div class="material" data-material>
                         <div class="material-line">
                             <label class="field" data-material-label>Material
-                                <input required maxlength="150" name="materials[__INDEX__][name]" data-name>
+                                <input maxlength="150" name="materials[__INDEX__][name]" data-name>
                             </label>
                             <button type="button" class="btn btn-ghost btn-icon" data-action="artefact-editor#removeMaterial" data-remove-material aria-label="Remover material" title="Remover material">{{ icons.svg('trash') }}</button>
                         </div>
@@ -142,10 +243,10 @@
             </fieldset>
 
             <label class="field">Cuidados — uma orientação por linha
-                <textarea name="care" required rows="4">{{ draft.care }}</textarea>
+                <textarea name="care" rows="4">{{ draft.care }}</textarea>
             </label>
             <label class="field">Feito à mão
-                <textarea class="handmade-field" name="handmade" required rows="7" maxlength="5000">{{ draft.handmade }}</textarea>
+                <textarea class="handmade-field" name="handmade" rows="7" maxlength="5000">{{ draft.handmade }}</textarea>
             </label>
 
             <p class="form-error" role="alert" data-artefact-editor-target="error" {% if not error %}hidden{% endif %}>{{ error }}</p>
@@ -153,7 +254,7 @@
             <div class="form-actions">
                 <p class="save-state" data-artefact-editor-target="status" hidden></p>
                 <a class="btn btn-ghost" href="{{ path('admin_records') }}">Cancelar</a>
-                <button type="submit" class="btn" data-submit>{{ draft.locked ? 'Salvar alterações' : 'Criar artefacto' }}</button>
+                <button type="submit" class="btn" name="generate" value="1" data-submit>{{ draft.locked ? 'Salvar alterações' : 'Criar artefacto' }}</button>
             </div>
         </form>
     </main>

@@ -18,12 +18,14 @@ final class PublicArtefact
         public string $reference,
         public string $title,
         public string $lede,
+        public string $symbolism,
         public string $dimensions,
         public array $materials,
         public string $handmade,
         public array $care,
         public string $recordDate,
         public array $images,
+        public bool $pending = false,
     ) {
     }
 
@@ -44,14 +46,16 @@ final class PublicArtefact
         return new self(
             path: $artefact->getPublicToken(),
             reference: $artefact->getCode(),
-            title: $artefact->getTitle(),
+            title: $artefact->getTitle() !== '' ? $artefact->getTitle() : 'Peça em registro',
             lede: $artefact->getDescription(),
+            symbolism: $artefact->getSymbolism(),
             dimensions: $artefact->getDimensions() !== '' ? $artefact->getDimensions() : $artefact->getSize(),
             materials: $artefact->getMaterials(),
             handmade: $artefact->getHandmade(),
             care: $artefact->getCare(),
             recordDate: $artefact->getRecordDate()->format('d / m / Y'),
             images: $photos,
+            pending: in_array($artefact->getAiStatus(), ['queued', 'running'], true),
         );
     }
 }

@@ -17,15 +17,22 @@ final class ArtefactRegistrar
     ) {
     }
 
-    public function create(ArtefactData $data): Artefact
+    /**
+     * @param list<string> $touched
+     */
+    public function create(ArtefactData $data, array $touched = [], string $notes = '', ?string $audioPath = null, ?string $audioMime = null, ?int $audioDurationMs = null): Artefact
     {
         try {
             /** @var Artefact $artefact */
-            $artefact = $this->em->wrapInTransaction(function () use ($data): Artefact {
+            $artefact = $this->em->wrapInTransaction(function () use ($data, $touched, $notes, $audioPath, $audioMime, $audioDurationMs): Artefact {
                 $artefact = new Artefact();
                 $artefact->setSize($data->size);
                 $artefact->setCategory($data->category);
-                $artefact->apply($data);
+                $artefact->absorb($data, $touched);
+                $artefact->setNotes($notes);
+                $artefact->setAudioPath($audioPath);
+                $artefact->setAudioMime($audioMime);
+                $artefact->setAudioDurationMs($audioDurationMs);
                 $artefact->setCode($this->nextCode($data->size, $data->category));
                 $artefact->setPublicToken($this->nextToken());
                 $this->em->persist($artefact);
@@ -36,15 +43,36 @@ final class ArtefactRegistrar
             throw new InvalidArtefact('Não foi possível salvar a peça. Nenhum código existente foi alterado.');
         }
 
-        return $artefact;
+        return $this->stored($artefact);
     }
 
-    /** @return list<string> Image paths removed from the record */
-    public function update(Artefact $artefact, ArtefactData $data): array
+    /**
+     * @param list<string> $touched
+     *
+     * @return list<string> Image paths removed from the record
+     */
+    public function update(Artefact $artefact, ArtefactData $data, array $touched = [], ?string $notes = null, ?string $audioPath = null, ?string $audioMime = null, bool $clearAudio = false, ?int $audioDurationMs = null): array
     {
+        $token = $artefact->getPublicToken();
         $removed = array_values(array_diff($artefact->getImages(), $data->images));
-        $artefact->apply($data);
+        $artefact->absorb($data, $touched);
+        if ($notes !== null) {
+            $artefact->setNotes($notes);
+        }
+        if ($clearAudio) {
+            $artefact->setAudioPath(null);
+            $artefact->setAudioMime(null);
+            $artefact->setAudioDurationMs(null);
+        } elseif ($audioPath !== null) {
+            $artefact->setAudioPath($audioPath);
+            $artefact->setAudioMime($audioMime);
+            $artefact->setAudioDurationMs($audioDurationMs);
+        }
+        if ($artefact->getPublicToken() !== $token || $token === '') {
+            throw new InvalidArtefact('O link público da peça não pode mudar.');
+        }
         $this->em->flush();
+        $this->stored($artefact);
 
         return $removed;
     }
@@ -81,5 +109,20 @@ final class ArtefactRegistrar
         }
 
         throw new \RuntimeException('Could not allocate a public token.');
+    }
+
+    private function stored(Artefact $artefact): Artefact
+    {
+        $id = $artefact->getId();
+        $token = $artefact->getPublicToken();
+        $title = $artefact->getTitle();
+        $this->em->clear();
+        $this->em->getConnection()->close();
+        $stored = $this->artefacts->find($id);
+        if (!$stored instanceof Artefact || $stored->getPublicToken() !== $token || $stored->getTitle() !== $title || $token === '') {
+            throw new InvalidArtefact('Não foi possível gravar a peça. O arquivo não confirmou a gravação.');
+        }
+
+        return $stored;
     }
 }
