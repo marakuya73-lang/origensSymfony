@@ -72,6 +72,7 @@ final class SubmissionParser
                     $current,
                     SalePrice::input($data->salePriceCents),
                     $data->symbolism,
+                    $request->request->getString('suggested_price'),
                 ),
                 $data,
                 null,
@@ -175,6 +176,7 @@ final class SubmissionParser
             $current,
             $request->request->getString('sale_price'),
             $request->request->getString('symbolism'),
+            $request->request->getString('suggested_price'),
         );
     }
 

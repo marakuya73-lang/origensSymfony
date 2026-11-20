@@ -62,6 +62,7 @@
                     <span>Foto</span>
                     <span>Peça</span>
                     <span>Preço</span>
+                    <span>Sugerido</span>
                     <span>Tamanho</span>
                     <span>Categoria</span>
                     <span>Criação</span>
@@ -69,7 +70,7 @@
                     <span>Ações</span>
                 </div>
                 {% for row in rows %}
-                    <article class="record-row" data-cents="{{ row.priceCents is null ? '' : row.priceCents }}">
+                    <article class="record-row" data-cents="{{ row.priceCents is null ? '' : row.priceCents }}" data-suggested-cents="{{ row.suggestedCents is null ? '' : row.suggestedCents }}">
                         {% if row.path %}
                             <a class="row-open" href="{{ row.path }}" aria-label="Abrir {{ row.code }}"></a>
                         {% endif %}
@@ -95,6 +96,12 @@
                             <label class="sr-only" for="price-{{ row.id }}">Preço de {{ row.code }}</label>
                             <span class="row-price-prefix" aria-hidden="true">R$</span>
                             <input id="price-{{ row.id }}" data-inline-cell-target="input" data-action="blur->inline-cell#commit change->inline-cell#commit focusout->inline-cell#commit keydown->inline-cell#keydown" value="{{ row.priceInput }}" inputmode="decimal" enterkeyhint="done" placeholder="0,00" autocomplete="off">
+                            <span class="row-edit-status" data-inline-cell-target="status" hidden></span>
+                        </div>
+                        <div class="row-edit row-suggested" data-controller="inline-cell" data-inline-cell-url-value="{{ path('admin_artefact_patch', {id: row.id}) }}" data-inline-cell-token-value="{{ csrf_token('inline') }}" data-inline-cell-field-value="suggested">
+                            <label class="sr-only" for="suggested-{{ row.id }}">Preço sugerido de {{ row.code }}</label>
+                            <span class="row-price-prefix" aria-hidden="true">R$</span>
+                            <input id="suggested-{{ row.id }}" data-inline-cell-target="input" data-action="blur->inline-cell#commit change->inline-cell#commit focusout->inline-cell#commit keydown->inline-cell#keydown" value="{{ row.suggestedInput }}" inputmode="decimal" enterkeyhint="done" placeholder="0,00" autocomplete="off">
                             <span class="row-edit-status" data-inline-cell-target="status" hidden></span>
                         </div>
                         <div class="row-edit" data-controller="inline-cell" data-inline-cell-url-value="{{ path('admin_artefact_patch', {id: row.id}) }}" data-inline-cell-token-value="{{ csrf_token('inline') }}" data-inline-cell-field-value="size">

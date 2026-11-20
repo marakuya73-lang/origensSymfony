@@ -62,4 +62,20 @@ final class SalePrice
     {
         return self::input($cents);
     }
+
+    public static function suggestedFrom(?int $priceCents): ?int
+    {
+        if ($priceCents === null) {
+            return null;
+        }
+
+        return intdiv($priceCents * 13 + 5, 10);
+    }
+
+    public static function belowSuggestion(?int $priceCents, ?int $suggestedCents): bool
+    {
+        $floor = self::suggestedFrom($priceCents);
+
+        return $floor !== null && $suggestedCents !== null && $suggestedCents < $floor;
+    }
 }

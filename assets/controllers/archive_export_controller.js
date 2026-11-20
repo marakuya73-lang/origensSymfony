@@ -5,7 +5,7 @@ export default class extends Controller {
 
     connect() {
         this.element.addEventListener('input', (event) => {
-            if (event.target instanceof HTMLInputElement && event.target.closest('.row-price')) {
+            if (event.target instanceof HTMLInputElement && event.target.closest('.row-price, .row-suggested')) {
                 this.sync();
             }
         });
@@ -40,17 +40,22 @@ export default class extends Controller {
             return;
         }
         let cents = 0;
+        let suggested = 0;
         let missing = 0;
         selected.forEach((box) => {
-            const price = this.centsFor(box);
+            const price = this.centsFor(box, '.row-price input', 'cents');
+            const offered = this.centsFor(box, '.row-suggested input', 'suggestedCents');
             if (price === null) {
                 missing += 1;
-                return;
+            } else {
+                cents += price;
             }
-            cents += price;
+            if (offered !== null) {
+                suggested += offered;
+            }
         });
         const count = selected.length === 1 ? '1 selecionado' : `${selected.length} selecionados`;
-        let text = `${count} · Total ${this.reais(cents)}`;
+        let text = `${count} · Total ${this.reais(cents)} · Sugerido ${this.reais(suggested)}`;
         if (missing > 0) {
             text += ` · sem preço: ${missing}`;
         }
@@ -58,9 +63,9 @@ export default class extends Controller {
         this.totalTarget.hidden = false;
     }
 
-    centsFor(box) {
+    centsFor(box, selector = '.row-price input', datasetKey = 'cents') {
         const row = box.closest('.record-row');
-        const input = row?.querySelector('.row-price input');
+        const input = row?.querySelector(selector);
         if (input instanceof HTMLInputElement && input.value.trim() !== '') {
             const parsed = this.parseCents(input.value);
             if (parsed !== null) {
@@ -70,7 +75,7 @@ export default class extends Controller {
         if (input instanceof HTMLInputElement && input.value.trim() === '') {
             return null;
         }
-        const stored = row instanceof HTMLElement ? row.dataset.cents ?? '' : '';
+        const stored = row instanceof HTMLElement ? row.dataset[datasetKey] ?? '' : '';
         if (stored === '') {
             return null;
         }

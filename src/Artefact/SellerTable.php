@@ -156,7 +156,15 @@ final class SellerTable
                 .'<td>'.$this->h($this->categoryLabel($artefact)).'</td>'
                 .'<td class="center">'.$this->h($artefact->getSize()).'</td>'
                 .'<td class="price">'.$this->h(SalePrice::brl($cents)).'</td>'
+                .'<td class="price">'.$this->h(SalePrice::brl($artefact->getSuggestedPriceCents())).'</td>'
                 .'</tr>';
+        }
+        $suggestedTotal = 0;
+        foreach ($artefacts as $artefact) {
+            $suggested = $artefact->getSuggestedPriceCents();
+            if ($suggested !== null) {
+                $suggestedTotal += $suggested;
+            }
         }
         $count = count($artefacts);
         $logo = $this->logoDataUri();
@@ -183,9 +191,9 @@ final class SellerTable
             .'tfoot td { border-bottom: 0; padding-top: 16px; font-family: DejaVu Serif, serif; font-size: 13px; }'
             .'</style></head><body>'
             .'<div class="top">'.$mark.'<h1>ORIGENS</h1><p class="date">'.$this->h($this->todayLabel()).'</p></div>'
-            .'<table><thead><tr><th>Foto</th><th>Nome</th><th>Categoria</th><th class="center">Tamanho</th><th class="price">Preço</th></tr></thead>'
+            .'<table><thead><tr><th>Foto</th><th>Nome</th><th>Categoria</th><th class="center">Tamanho</th><th class="price">Preço</th><th class="price">Preço sugerido</th></tr></thead>'
             .'<tbody>'.$rows.'</tbody>'
-            .'<tfoot><tr><td colspan="4">'.$count.' abanilhos</td><td class="price">'.$this->h(SalePrice::brl($total)).'</td></tr></tfoot>'
+            .'<tfoot><tr><td colspan="4">'.$count.' abanilhos</td><td class="price">'.$this->h(SalePrice::brl($total)).'</td><td class="price">'.$this->h(SalePrice::brl($suggestedTotal)).'</td></tr></tfoot>'
             .'</table></body></html>';
     }
 
@@ -197,7 +205,7 @@ final class SellerTable
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Artefactos');
-        foreach (['Foto', 'Ref', 'Nome', 'Categoria', 'Tamanho', 'Preço'] as $index => $header) {
+        foreach (['Foto', 'Ref', 'Nome', 'Categoria', 'Tamanho', 'Preço', 'Preço sugerido'] as $index => $header) {
             $sheet->setCellValue([$index + 1, 1], $header);
         }
         $sheet->getColumnDimension('A')->setWidth(14);
@@ -206,6 +214,7 @@ final class SellerTable
         $sheet->getColumnDimension('D')->setWidth(16);
         $sheet->getColumnDimension('E')->setWidth(12);
         $sheet->getColumnDimension('F')->setWidth(16);
+        $sheet->getColumnDimension('G')->setWidth(18);
         $format = '"R$" #,##0.00';
         $temporary = [];
         $count = 0;
@@ -233,11 +242,18 @@ final class SellerTable
                 $sheet->setCellValue('F'.$row, $cents / 100);
                 $sheet->getStyle('F'.$row)->getNumberFormat()->setFormatCode($format);
             }
+            $suggested = $artefact->getSuggestedPriceCents();
+            if ($suggested !== null) {
+                $sheet->setCellValue('G'.$row, $suggested / 100);
+                $sheet->getStyle('G'.$row)->getNumberFormat()->setFormatCode($format);
+            }
         }
         $totalRow = $count + 2;
         $sheet->setCellValue('C'.$totalRow, $count.' abanilhos');
         $sheet->setCellValue('F'.$totalRow, $count === 0 ? 0 : '=SUM(F2:F'.($totalRow - 1).')');
+        $sheet->setCellValue('G'.$totalRow, $count === 0 ? 0 : '=SUM(G2:G'.($totalRow - 1).')');
         $sheet->getStyle('F'.$totalRow)->getNumberFormat()->setFormatCode($format);
+        $sheet->getStyle('G'.$totalRow)->getNumberFormat()->setFormatCode($format);
 
         $path = tempnam(sys_get_temp_dir(), 'xlsx');
         if ($path === false) {

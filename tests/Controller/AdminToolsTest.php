@@ -250,6 +250,8 @@ final class AdminToolsTest extends WebTestCase
         self::assertStringContainsString('Cerâmica de coração', $html);
         self::assertStringContainsString('Categoria 1', $html);
         self::assertStringContainsString('R$ 1.250,50', $html);
+        self::assertStringContainsString('R$ 1.625,65', $html);
+        self::assertStringContainsString('Preço sugerido', $html);
         self::assertStringContainsString('1 abanilhos', $html);
         self::assertStringContainsString('data:image/jpeg;base64,', $html);
         self::assertStringContainsString('data:image/png;base64,', $html);
@@ -284,6 +286,8 @@ final class AdminToolsTest extends WebTestCase
         self::assertStringContainsString('M-CAT1-001', $strings);
         self::assertStringContainsString('1250.5', $sheet);
         self::assertStringContainsString('SUM(F2:F3)', $sheet);
+        self::assertStringContainsString('SUM(G2:G3)', $sheet);
+        self::assertStringContainsString('1625.65', $sheet);
 
         $client->request('POST', '/admin/records/export', [
             '_token' => $token,
@@ -724,7 +728,8 @@ final class AdminToolsTest extends WebTestCase
         self::assertSelectorExists('input[id^="title-"][data-action*="focusout->inline-cell#commit"]');
         self::assertSelectorExists('input[id^="price-"][inputmode="decimal"][placeholder="0,00"]');
         self::assertSelectorExists('.row-price-prefix');
-        self::assertSame(9, $client->getCrawler()->filter('.record-head > span')->count());
+        self::assertSame(10, $client->getCrawler()->filter('.record-head > span')->count());
+        self::assertSelectorTextContains('.record-head', 'Sugerido');
         self::assertSelectorTextContains('.record-head', 'Preço');
         self::assertSelectorTextContains('.record-head', 'Status');
         self::assertSelectorTextContains('.record-head', 'Ações');
@@ -928,6 +933,53 @@ final class AdminToolsTest extends WebTestCase
         self::assertStringContainsString('Atualize a página', (string) $denied['error']);
         self::assertStringContainsString('csrf', (string) file_get_contents($log));
         self::assertSame('M', $em->find(\App\Entity\Artefact::class, $artefact->getId())?->getSize());
+    }
+
+    public function testSuggestedPriceFollowsTheSellingPriceUntilSheEditsIt(): void
+    {
+        $client = $this->ownerClient();
+        $registrar = static::getContainer()->get(ArtefactRegistrar::class);
+        self::assertInstanceOf(ArtefactRegistrar::class, $registrar);
+        $artefact = $registrar->create($this->data('Cocar', 'Texto já escrito.', 10000));
+        self::assertSame(13000, $artefact->getSuggestedPriceCents());
+        self::assertFalse($artefact->isSuggestedPriceManual());
+        $client->request('GET', '/admin/records');
+        $token = $client->getCrawler()->filter('[data-inline-cell-token-value]')->attr('data-inline-cell-token-value');
+        self::assertIsString($token);
+        $url = '/admin/records/'.$artefact->getId().'/field';
+
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'suggested', 'value' => '100,00']);
+        self::assertResponseIsSuccessful();
+        $low = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($low);
+        self::assertSame('100,00', $low['value']);
+        self::assertSame('Abaixo de 30% sobre o preço.', $low['warning']);
+
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'price', 'value' => '200,00']);
+        self::assertResponseIsSuccessful();
+        $raised = json_decode((string) $client->getResponse()->getContent(), true);
+        self::assertIsArray($raised);
+        self::assertSame('100,00', $raised['suggested']);
+
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        $em->clear();
+        $stored = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $stored);
+        self::assertSame(20000, $stored->getSalePriceCents());
+        self::assertSame(10000, $stored->getSuggestedPriceCents());
+        self::assertTrue($stored->isSuggestedPriceManual());
+
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'suggested', 'value' => '']);
+        self::assertResponseIsSuccessful();
+        $client->request('POST', $url, ['_token' => $token, 'field' => 'price', 'value' => '50,00']);
+        self::assertResponseIsSuccessful();
+        $em->clear();
+        $again = $em->find(\App\Entity\Artefact::class, $artefact->getId());
+        self::assertInstanceOf(\App\Entity\Artefact::class, $again);
+        self::assertSame(5000, $again->getSalePriceCents());
+        self::assertSame(6500, $again->getSuggestedPriceCents());
+        self::assertFalse($again->isSuggestedPriceManual());
     }
 
     public function testEditorAutosaveStoresTitleAndPriceWithoutQueueingAi(): void

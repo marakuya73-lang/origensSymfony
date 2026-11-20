@@ -211,6 +211,7 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertStringNotContainsString('98765', $html);
         self::assertStringNotContainsString('R$', $html);
         self::assertStringNotContainsString('preço', $lower);
+        self::assertStringNotContainsString('sugerido', $lower);
         self::assertStringNotContainsString('venda', $lower);
         self::assertStringNotContainsString('sale_price', $lower);
         self::assertStringNotContainsString('salepricecents', $lower);

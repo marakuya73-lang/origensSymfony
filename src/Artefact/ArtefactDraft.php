@@ -27,6 +27,8 @@ final class ArtefactDraft
         public ?string $code,
         public string $salePrice = '',
         public string $symbolism = '',
+        public string $suggestedPrice = '',
+        public bool $suggestedLow = false,
     ) {
     }
 
@@ -66,6 +68,8 @@ final class ArtefactDraft
             code: $artefact->getCode(),
             salePrice: SalePrice::input($artefact->getSalePriceCents()),
             symbolism: $artefact->getSymbolism(),
+            suggestedPrice: SalePrice::input($artefact->getSuggestedPriceCents()),
+            suggestedLow: SalePrice::belowSuggestion($artefact->getSalePriceCents(), $artefact->getSuggestedPriceCents()),
         );
     }
 
@@ -88,6 +92,7 @@ final class ArtefactDraft
         ?Artefact $current,
         string $salePrice = '',
         string $symbolism = '',
+        string $suggestedPrice = '',
     ): self {
         if (!in_array($size, ['P', 'M', 'G'], true)) {
             $size = 'M';
@@ -114,7 +119,18 @@ final class ArtefactDraft
             code: $current?->getCode(),
             salePrice: $salePrice,
             symbolism: $symbolism,
+            suggestedPrice: $suggestedPrice,
+            suggestedLow: self::lowSuggestion($salePrice, $suggestedPrice),
         );
+    }
+
+    private static function lowSuggestion(string $price, string $suggested): bool
+    {
+        try {
+            return SalePrice::belowSuggestion(SalePrice::cents($price), SalePrice::cents($suggested));
+        } catch (InvalidArtefact) {
+            return false;
+        }
     }
 
     /**

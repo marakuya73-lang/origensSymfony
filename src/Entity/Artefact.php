@@ -68,6 +68,12 @@ class Artefact
     #[ORM\Column(type: Types::INTEGER, nullable: true)]
     private ?int $salePriceCents = null;
 
+    #[ORM\Column(type: Types::INTEGER, nullable: true)]
+    private ?int $suggestedPriceCents = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $suggestedPriceManual = false;
+
     #[ORM\Column(type: Types::TEXT, options: ['default' => ''])]
     private string $notes = '';
 
@@ -215,6 +221,32 @@ class Artefact
     public function setSalePriceCents(?int $salePriceCents): void
     {
         $this->salePriceCents = $salePriceCents;
+        $this->alignSuggestedPrice();
+    }
+
+    public function getSuggestedPriceCents(): ?int
+    {
+        return $this->suggestedPriceCents;
+    }
+
+    public function isSuggestedPriceManual(): bool
+    {
+        return $this->suggestedPriceManual;
+    }
+
+    public function setSuggestedPriceCents(?int $suggestedPriceCents): void
+    {
+        $this->suggestedPriceCents = $suggestedPriceCents;
+        $this->suggestedPriceManual = $suggestedPriceCents !== null;
+    }
+
+    public function alignSuggestedPrice(): void
+    {
+        if ($this->suggestedPriceManual && $this->suggestedPriceCents !== null) {
+            return;
+        }
+        $this->suggestedPriceCents = \App\Artefact\SalePrice::suggestedFrom($this->salePriceCents);
+        $this->suggestedPriceManual = false;
     }
 
     public function createdOn(): string
@@ -310,6 +342,7 @@ class Artefact
         $this->images = array_values($data->images);
         $this->recordDate = $data->recordDate;
         $this->salePriceCents = $data->salePriceCents;
+        $this->alignSuggestedPrice();
     }
 
     /** @param list<string> $touched */
