@@ -72,11 +72,30 @@ export default class extends Controller {
             this.inputTarget.value = this.saved;
             this.pending = null;
             this.inputTarget.dispatchEvent(new Event('input', { bubbles: true }));
+            this.reflectSuggested(payload);
+            if (payload.warning) {
+                this.message(payload.warning, false);
+                this.statusTarget.classList.add('is-warning');
+                return;
+            }
+            this.statusTarget.classList.remove('is-warning');
             this.message('salvo ✓', false);
         } catch {
             this.inputTarget.value = this.saved;
             this.pending = null;
             this.message('Não foi possível salvar.', true);
+        }
+    }
+
+    reflectSuggested(payload) {
+        if (this.fieldValue !== 'price' || typeof payload.suggested !== 'string') {
+            return;
+        }
+        const row = this.element.closest('.record-row');
+        const other = row?.querySelector('.row-suggested input');
+        if (other instanceof HTMLInputElement && other !== this.inputTarget) {
+            other.value = payload.suggested;
+            other.dispatchEvent(new Event('input', { bubbles: true }));
         }
     }
 
@@ -87,5 +106,6 @@ export default class extends Controller {
         this.statusTarget.textContent = text;
         this.statusTarget.hidden = text === '';
         this.statusTarget.classList.toggle('is-error', error);
+        this.statusTarget.classList.remove('is-warning');
     }
 }

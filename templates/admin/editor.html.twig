@@ -193,6 +193,11 @@
                 <input name="sale_price" inputmode="decimal" maxlength="16" value="{{ draft.salePrice }}" placeholder="Ex.: 1.250,00" enterkeyhint="done" autocomplete="off">
             </label>
             <p class="hint">Em reais. Fica no arquivo e na planilha, e não aparece na página pública.</p>
+            <label class="field">Preço sugerido (opcional)
+                <input name="suggested_price" inputmode="decimal" maxlength="16" value="{{ draft.suggestedPrice }}" placeholder="30% acima do preço" enterkeyhint="done" autocomplete="off" data-suggested-price>
+            </label>
+            <p class="hint">Começa 30% acima do preço. Se você alterar, o seu valor fica.</p>
+            <p class="hint suggested-warning" data-suggested-warning {% if not draft.suggestedLow %}hidden{% endif %}>Abaixo de 30% sobre o preço. Gravado mesmo assim.</p>
 
             <label class="field">Descrição (opcional)
                 <textarea name="description" rows="8" maxlength="8000">{{ draft.description }}</textarea>

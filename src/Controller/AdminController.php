@@ -289,6 +289,7 @@ final class AdminController extends AbstractController
         try {
             match ($field) {
                 'price' => $artefact->setSalePriceCents(SalePrice::cents($value)),
+                'suggested' => $artefact->setSuggestedPriceCents(SalePrice::cents($value)),
                 'size' => $this->assignSize($artefact, $value),
                 'category' => $this->assignCategory($artefact, $value),
                 'title' => $this->assignTitle($artefact, $value),
@@ -317,13 +318,23 @@ final class AdminController extends AbstractController
 
         $saved = match ($field) {
             'price' => SalePrice::input($stored->getSalePriceCents()),
+            'suggested' => SalePrice::input($stored->getSuggestedPriceCents()),
             'size' => $stored->getSize(),
             'category' => (string) $stored->getCategory(),
             'title' => $stored->getTitle(),
             default => '',
         };
+        $warning = SalePrice::belowSuggestion($stored->getSalePriceCents(), $stored->getSuggestedPriceCents())
+            ? 'Abaixo de 30% sobre o preço.'
+            : null;
 
-        return $this->json(['ok' => true, 'field' => $field, 'value' => $saved]);
+        return $this->json([
+            'ok' => true,
+            'field' => $field,
+            'value' => $saved,
+            'suggested' => SalePrice::input($stored->getSuggestedPriceCents()),
+            'warning' => $warning,
+        ]);
     }
 
     #[Route('/admin/records/{id}/edit', name: 'admin_artefact_edit', methods: ['GET', 'POST'], requirements: ['id' => '[0-9a-fA-F-]{36}'])]
@@ -474,6 +485,13 @@ final class AdminController extends AbstractController
         }
 
         $touched = ProfileExchange::touched($request->request->getString('locked'));
+        $locked = json_decode($request->request->getString('locked'), true);
+        $suggestedTouched = is_array($locked) && in_array('suggested_price', $locked, true);
+        try {
+            $suggestedCents = SalePrice::cents($request->request->getString('suggested_price'));
+        } catch (InvalidArtefact $exception) {
+            return $this->saveFailed($autosave, $current, $submission->draft ?? ArtefactDraft::blank(), $exception->getMessage(), Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
         $notes = trim($request->request->getString('notes'));
         if (mb_strlen($notes) > 4000) {
             $notes = rtrim(mb_substr($notes, 0, 4000));
@@ -513,6 +531,10 @@ final class AdminController extends AbstractController
         }
         if ($previousAudio !== null && $previousAudio !== $artefact->getAudioPath()) {
             $this->jobRunner->forgetAudio($previousAudio);
+        }
+        if ($suggestedTouched) {
+            $artefact->setSuggestedPriceCents($suggestedCents);
+            $this->artefacts->getEntityManager()->flush();
         }
         $audioState = $this->audioState($artefact);
 
@@ -614,6 +636,8 @@ final class AdminController extends AbstractController
                 'price' => SalePrice::brl($artefact->getSalePriceCents()),
                 'priceInput' => SalePrice::input($artefact->getSalePriceCents()),
                 'priceCents' => $artefact->getSalePriceCents(),
+                'suggestedInput' => SalePrice::input($artefact->getSuggestedPriceCents()),
+                'suggestedCents' => $artefact->getSuggestedPriceCents(),
                 'size' => $artefact->getSize(),
                 'category' => $artefact->getCategory(),
                 'image' => is_string($first) && ArtefactRules::isValidImagePath($first) ? $this->images->webPath($first) : null,

@@ -11,8 +11,12 @@ export default class extends Controller {
         this.savedSnapshot = this.snapshot();
         this.reviewing = false;
         this.touched = new Set();
-        this.element.addEventListener('input', (event) => this.noteTouch(event));
+        this.element.addEventListener('input', (event) => {
+            this.noteTouch(event);
+            this.refreshSuggestedWarning();
+        });
         this.element.addEventListener('change', (event) => this.noteTouch(event));
+        this.refreshSuggestedWarning();
         this.element.addEventListener('keydown', (event) => this.onKey(event));
         this.onOutside = (event) => {
             const active = document.activeElement;
@@ -30,6 +34,35 @@ export default class extends Controller {
 
     disconnect() {
         document.removeEventListener('touchend', this.onOutside, true);
+    }
+
+    refreshSuggestedWarning() {
+        const warning = this.element.querySelector('[data-suggested-warning]');
+        if (!(warning instanceof HTMLElement)) {
+            return;
+        }
+        const price = this.parseCents(this.element.querySelector('[name="sale_price"]')?.value ?? '');
+        const suggested = this.parseCents(this.element.querySelector('[name="suggested_price"]')?.value ?? '');
+        const floor = price === null ? null : Math.floor((price * 13 + 5) / 10);
+        warning.hidden = !(floor !== null && suggested !== null && suggested < floor);
+    }
+
+    parseCents(raw) {
+        let value = String(raw).replace(/R\$/g, '').replace(/\s/g, '').trim();
+        if (value === '') {
+            return null;
+        }
+        if (value.includes(',')) {
+            value = value.replace(/\./g, '').replace(',', '.');
+        } else if (/^\d{1,3}(\.\d{3})+$/.test(value)) {
+            value = value.replace(/\./g, '');
+        }
+        if (!/^\d+(\.\d{1,2})?$/.test(value)) {
+            return null;
+        }
+        const [reais, fraction = '0'] = value.split('.');
+
+        return (Number(reais) * 100) + Number(fraction.padEnd(2, '0').slice(0, 2));
     }
 
     onKey(event) {
@@ -66,7 +99,7 @@ export default class extends Controller {
         if (target.closest('[data-material]')) {
             return 'materials';
         }
-        if (['title', 'description', 'symbolism', 'dimensions', 'care', 'handmade', 'size', 'category', 'sale_price'].includes(target.name)) {
+        if (['title', 'description', 'symbolism', 'dimensions', 'care', 'handmade', 'size', 'category', 'sale_price', 'suggested_price'].includes(target.name)) {
             return target.name;
         }
 
