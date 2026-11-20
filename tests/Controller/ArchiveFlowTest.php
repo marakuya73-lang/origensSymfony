@@ -22,6 +22,8 @@ final class ArchiveFlowTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('input[name="_password"]');
         self::assertSelectorTextContains('h1', 'ORIGENS');
+        self::assertSelectorExists('img.login-mark[src*="brand.png"]');
+        self::assertStringEndsWith('/brand.png?v=5', (string) $client->getCrawler()->filter('meta[property="og:image"]')->attr('content'));
         self::assertSelectorNotExists('h1.piece-title');
 
         $client->request('GET', '/p/org-001');
@@ -93,6 +95,8 @@ final class ArchiveFlowTest extends WebTestCase
         $client->request('GET', $path);
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('h1', 'Cocar');
+        self::assertSelectorExists('header.masthead img.brand-mark[src*="brand.png"]');
+        self::assertStringEndsWith('/brand.png?v=5', (string) $client->getCrawler()->filter('meta[property="og:image"]')->attr('content'));
         self::assertSelectorTextContains('body', $code);
         self::assertSelectorTextContains('body', 'Pedra');
 

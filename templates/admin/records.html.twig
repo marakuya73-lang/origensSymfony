@@ -10,9 +10,12 @@
 {% block body %}
     <main class="admin-page">
         <header class="admin-bar">
-            <div>
-                <p class="admin-mark">ORIGENS</p>
-                <p class="label">Arquivo reservado</p>
+            <div class="brand">
+                <img class="brand-mark" src="{{ asset('brand.png') }}?v=5" alt="" width="56" height="56">
+                <div>
+                    <p class="admin-mark">ORIGENS</p>
+                    <p class="label">Arquivo reservado</p>
+                </div>
             </div>
             <form method="post" action="{{ path('_logout_main') }}" data-turbo="false">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token('logout') }}">

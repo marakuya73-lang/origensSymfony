@@ -10,6 +10,7 @@
 {% block body %}
     <main class="login-page">
         <div class="login-box">
+            <img class="brand-mark login-mark" src="{{ asset('brand.png') }}?v=5" alt="" width="120" height="120">
             <h1 class="login-wordmark">ORIGENS</h1>
             <form class="login-form" method="post" action="{{ path('admin_login') }}" data-turbo="false">
                 <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
